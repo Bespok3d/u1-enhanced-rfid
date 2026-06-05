@@ -1,0 +1,66 @@
+name: build-and-release
+
+# On a push to main that changes a plugin or the build scripts: pack the plugin's .b3, publish a
+# GitHub release, generate its index atom, and commit the atom into Bespok3d/main-index/atoms/ so the
+# official catalog picks it up. (A solo plugin repo publishes a single atom, not a sub-list.)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*/manifest.json'
+      - '*/files/**'
+      - '*/doc/**'
+      - scripts/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pack the plugin .b3
+        run: sh scripts/pack.sh
+
+      - name: Release, generate the atom, and register it in main-index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Fine-grained PAT with contents:write on Bespok3d/main-index (the per-repo GITHUB_TOKEN
+          # cannot write a sibling repo). Create it in the org and add it as this repo's secret.
+          MAIN_INDEX_TOKEN: ${{ secrets.MAIN_INDEX_TOKEN }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${MAIN_INDEX_TOKEN}@github.com/Bespok3d/main-index.git" main-index
+          mkdir -p main-index/atoms
+          for dir in */; do
+            [ -f "${dir}manifest.json" ] || continue
+            id="${dir%/}"
+            name=$(jq -r '.name' "${dir}manifest.json")
+            version=$(jq -r '.version' "${dir}manifest.json")
+            tag="${name}-v${version}"
+            asset="${name}-${version}.b3"
+            if ! gh release view "$tag" >/dev/null 2>&1; then
+              gh release create "$tag" --title "$tag" --notes "Automated release of ${asset}"
+            fi
+            gh release upload "$tag" "dist/${asset}" --clobber
+            download_url=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
+              --jq ".assets[] | select(.name==\"${asset}\") | .url")
+            node scripts/generate-atom.mjs --plugin "$id" --download-url "$download_url" --repo "$GITHUB_REPOSITORY"
+            cp "dist/${name}.atom.json" "main-index/atoms/${name}.atom.json"
+          done
+          cd main-index
+          git config user.name "bespok3d-bot"
+          git config user.email "bot@bespok3d.local"
+          git add atoms/
+          if git diff --cached --quiet; then
+            echo "atoms unchanged; nothing to commit"
+          else
+            git commit -m "update atoms from ${GITHUB_REPOSITORY##*/}"
+            git push
+          fi

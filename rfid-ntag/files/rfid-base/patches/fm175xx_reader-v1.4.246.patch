@@ -1,0 +1,69 @@
+--- a/klippy/extras/fm175xx_reader.py	2026-05-27 01:38:01
++++ b/klippy/extras/fm175xx_reader.py	2026-05-27 01:38:01
+@@ -122,6 +122,7 @@
+ # RFID card type
+ FM175XX_MIFARE_CARD_TYPE_UNKNOWN        = 0xFF  # unknown type
+ FM175XX_MIFARE_CARD_TYPE_M1             = 0x08  # M1
++FM175XX_MIFARE_CARD_TYPE_NTAG          = 0x00  # NFC Forum Type 2 (NTAG213/215/216, Ultralight)
+ 
+ # About M1 Card
+ # EEPROM
+@@ -230,6 +231,7 @@
+         self.__card_info_clear_flag = 0
+         self.__stop_event = threading.Event()
+         self.__card_info_deal_cb = None
++        self._card_type_handlers = {}
+         self.__picc_a = Fm175xxPiccMetaData()
+ 
+         # self test
+@@ -962,6 +964,16 @@
+                                     self.__self_test_success_cnt += 1
+                                     if (self.__card_info_deal_cb != None):
+                                         self.__card_info_deal_cb(ch, card_op, card_op_result, card_type, card_data)
++                        elif self.__picc_a.SAK[0] in self._card_type_handlers:
++                            sak_val = self.__picc_a.SAK[0]
++                            try:
++                                card_type, card_data, card_op_result = \
++                                    self._card_type_handlers[sak_val](self)
++                                if card_op_result == FM175XX_OK:
++                                    self.__card_info_read_flag &= ~(1 << ch) & 0xFFFFFFFF
++                            except Exception as handler_err:
++                                logging.error("card_type_handler SAK=0x%02X: %s",
++                                              sak_val, handler_err)
+                         break
+ 
+                     # halt a card
+@@ -1023,6 +1035,33 @@
+         except Exception as e:
+             logging.error("Param[cb] is not a callable function")
+ 
++
++    def register_card_type_handler(self, sak, handler):
++        self._card_type_handlers[sak] = handler
++
++    def read_nfc_type2_pages(self, start_page, count):
++        results = []
++        for page in range(start_page, start_page + count, 4):
++            outbuf = [0] * 2
++            inbuf = [0] * 16
++            cmd = Fm175xxCmdMetaData()
++            cmd.send_crc_en = FM175XX_SET
++            cmd.recv_crc_en = FM175XX_SET
++            cmd.send_buff = outbuf
++            cmd.recv_buff = inbuf
++            cmd.send_buff[0] = 0x30
++            cmd.send_buff[1] = page
++            cmd.bytes_to_send = 2
++            cmd.bits_to_send = 0
++            cmd.bits_to_recv = 0
++            cmd.bytes_to_recv = 16
++            cmd.timeout = 10
++            cmd.cmd = FM175XX_CMD_TRANSCEIVE
++            result = self.__command_exe(cmd)
++            if result.err_code != FM175XX_OK or result.out_param.bytes_recved != 16:
++                return FM175XX_CARD_READ_ERR, None
++            results.extend(result.out_param.recv_buff[0:16])
++        return FM175XX_OK, results
+     def request_read_card_info(self, channel):
+         self.__card_info_clear_flag &= ~(1 << channel) & 0xFFFFFFFF
+         self.__card_info_read_flag |= (1 << channel)

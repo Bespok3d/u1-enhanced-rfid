@@ -1,0 +1,45 @@
+--- a/klippy/extras/filament_detect.py
++++ b/klippy/extras/filament_detect.py
+@@ -35,6 +35,7 @@
+         self._filament_info = [copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT) for i in range(self._channel_nums)]
+         self._state = [FILAMENT_DT_STATE_IDLE for i in range(self._channel_nums)]
+         self._notify_data_update_cb = []
++        self._card_protocol_parsers = {}
+ 
+         self.filament_feed_objects = None
+         self._fm175xx_reader = None
+@@ -124,6 +125,13 @@
+                     filament_info = info
+                 else:
+                     logging.error("channel[%d] m1 parse err: %d", channel, error)
++            elif card_type in self._card_protocol_parsers and fm175xx_reader.FM175XX_OK == result:
++                logging.info("channel[%d] parser for card_type=0x%02X", channel, card_type)
++                error, info = self._card_protocol_parsers[card_type](card_data)
++                if error == filament_protocol.FILAMENT_PROTO_OK:
++                    filament_info = info
++                else:
++                    logging.error("channel[%d] parse err: %d", channel, error)
+         else:
+             is_clear = True
+ 
+@@ -144,6 +152,20 @@
+         except Exception as e:
+             logging.error("Param[cb] is not a callable function")
+
++    def register_card_protocol_parser(self, card_type, parser):
++        self._card_protocol_parsers[card_type] = parser
++
++    @property
++    def channel_count(self):
++        return self._channel_nums
++
++    def set_filament_info(self, channel, info, is_clear=False):
++        if not (0 <= channel < self._channel_nums):
++            return False
++        self._state[channel] = FILAMENT_DT_STATE_IDLE
++        self._filament_info_update(channel, info, is_clear)
++        return True
++
+     def request_update_filament_info(self, channel):
+         if channel < 0 or channel >= self._channel_nums:
+             return
