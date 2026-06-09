@@ -5,7 +5,7 @@
   "description": "USB RFID reader picks up OpenSpool-encoded NTAG215 cards. Writes the current spool's metadata to rfid_data.json on every card event so the rest of the stack just knows.",
   "tagline": "NTAG215/OpenSpool RFID: your filament knows what it is.",
   "category": "filament",
-  "channel": "lts",
+  "channel": "stable",
   "printer_specific": true,
   "source": "https://github.com/bespok3d-org/plugin-rfid-ntag",
   "homepage": "https://github.com/bespok3d-org/plugin-rfid-ntag",
