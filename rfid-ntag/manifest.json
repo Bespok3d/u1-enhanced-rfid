@@ -9,6 +9,7 @@
   "printer_specific": true,
   "source": "https://github.com/bespok3d-org/plugin-rfid-ntag",
   "homepage": "https://github.com/bespok3d-org/plugin-rfid-ntag",
+  "changelog": "doc/CHANGELOG.md",
   "published_at": "2025-09-02",
   "updated_at": "2026-05-31",
   "publisher": "PLACEHOLDER",

@@ -1,3 +1,5 @@
 # Build outputs, never committed.
 dist/
 .DS_Store
+__pycache__/
+*.pyc
