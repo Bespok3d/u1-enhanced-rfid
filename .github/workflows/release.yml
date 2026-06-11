@@ -36,7 +36,7 @@ jobs:
           # cannot write a sibling repo). Create it in the org and add it as this repo's secret.
           MAIN_INDEX_TOKEN: ${{ secrets.MAIN_INDEX_TOKEN }}
         run: |
-          git clone --depth 1 "https://x-access-token:${MAIN_INDEX_TOKEN}@github.com/Bespok3d/main-index.git" main-index
+          git clone "https://x-access-token:${MAIN_INDEX_TOKEN}@github.com/Bespok3d/main-index.git" main-index
           mkdir -p main-index/atoms
           for dir in */; do
             [ -f "${dir}manifest.json" ] || continue
@@ -62,5 +62,10 @@ jobs:
             echo "atoms unchanged; nothing to commit"
           else
             git commit -m "update atoms from ${GITHUB_REPOSITORY##*/}"
-            git push
+            for attempt in 1 2 3 4 5; do
+              git push && { echo "pushed main-index (attempt ${attempt})"; break; }
+              [ "$attempt" = 5 ] && { echo "main-index push failed after ${attempt} attempts"; exit 1; }
+              echo "main-index push rejected; rebasing on remote main (attempt ${attempt})"
+              git pull --rebase --no-edit origin main
+            done
           fi
