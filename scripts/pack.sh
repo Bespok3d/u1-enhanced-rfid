@@ -25,12 +25,23 @@ file_sha256() {
 
 file_mode() { stat -f "%OLp" "$1" 2>/dev/null || stat -c "%a" "$1" 2>/dev/null; }
 
+# A plugin's Python-dep declaration (ADR-0036) lives at the plugin root, not under files/, but the
+# daemon reads it from the unpacked plugin dir to provision the venv / system-site links, so it must
+# ship in the .b3 and be listed in the manifest files[] alongside the files/ tree.
+dep_declaration_paths() {
+  plugin_dir="$1"
+  for req in requirements.txt klipper_requirements.txt; do
+    [ -f "$plugin_dir/$req" ] && printf '%s\n' "$plugin_dir/$req"
+  done
+}
+
 # LC_ALL=C forces a byte-order sort so the file list is identical regardless of locale.
 build_files_array() {
   plugin_dir="$1"
-  find "$plugin_dir/files" -type f \
-    ! -path '*/__pycache__/*' ! -name '*.pyc' ! -name '.DS_Store' \
-    | LC_ALL=C sort | while read -r fpath; do
+  { find "$plugin_dir/files" -type f \
+      ! -path '*/__pycache__/*' ! -name '*.pyc' ! -name '.DS_Store'
+    dep_declaration_paths "$plugin_dir"
+  } | LC_ALL=C sort | while read -r fpath; do
     relpath="${fpath#"$plugin_dir/"}"
     sha=$(file_sha256 "$fpath")
     mode=$(file_mode "$fpath")
@@ -52,6 +63,9 @@ pack_one() {
     cd "$plugin_dir"
     zip -qr "$output" files/
     if [ -d doc ]; then zip -qr "$output" doc/; fi
+    for req in requirements.txt klipper_requirements.txt; do
+      [ -f "$req" ] && zip -q "$output" "$req"
+    done
     cd "$tmp_dir"
     zip -q "$output" manifest.json
   )
