@@ -4,7 +4,7 @@ import logging
 import logging.handlers
 import os
 
-from . import filament_protocol
+from . import filament_protocol, mifare_classic
 
 RFID_DATA_FILE = "/oem/printer_data/config/bespok3d/data/rfid_data.json"
 _LOG_FILE = "/userdata/bespok3d/var/logs/bespok3d.log"
@@ -44,18 +44,32 @@ class Bespok3dRfid:
 
     def register_hw_reader(self, reader):
         self._hw_readers.append(reader)
+        self._register_reader_handler(reader)
+        self._register_reader_parser(reader)
+
+    def _register_reader_handler(self, reader):
         fm_reader = self.printer.lookup_object('fm175xx_reader', None)
-        if fm_reader is not None and hasattr(fm_reader, 'register_card_type_handler'):
+        claim = getattr(reader, 'claims', None)
+        if fm_reader is None:
+            _log.warning("fm175xx_reader patch absent: HW tag pipeline inactive")
+        elif callable(claim) and hasattr(fm_reader, 'register_card_handler'):
+            fm_reader.register_card_handler(reader.claims, reader.read_hw_tag)
+            _log.info("HW claim reader registered card_type=0x%02X", reader.card_type)
+        elif hasattr(fm_reader, 'register_card_type_handler'):
             fm_reader.register_card_type_handler(reader.sak, reader.read_hw_tag)
             _log.info("HW reader registered SAK=0x%02X", reader.sak)
         else:
             _log.warning("fm175xx_reader patch absent: HW tag pipeline inactive")
+
+    def _register_reader_parser(self, reader):
         detector = self.printer.lookup_object('filament_detect', None)
-        if detector is not None and hasattr(detector, 'register_card_protocol_parser'):
-            detector.register_card_protocol_parser(reader.card_type, self._dispatch_parsers)
-            _log.info("protocol parser registered card_type=0x%02X", reader.card_type)
-        else:
+        if detector is None or not hasattr(detector, 'register_card_protocol_parser'):
             _log.warning("filament_detect patch absent: SW payload pipeline inactive")
+            return
+        parse = getattr(reader, 'parse', None)
+        parser = parse if callable(parse) else self._dispatch_parsers
+        detector.register_card_protocol_parser(reader.card_type, parser)
+        _log.info("protocol parser registered card_type=0x%02X", reader.card_type)
 
     def register_payload_parser(self, parser):
         self._payload_parsers.append(parser)
@@ -69,7 +83,16 @@ class Bespok3dRfid:
             _log.warning("filament_detect not found: all pipelines inactive")
             return
         detector.register_cb_2_update_filament_info(self._on_filament_update)
+        if hasattr(detector, 'register_card_protocol_parser'):
+            detector.register_card_protocol_parser(
+                mifare_classic.M1_UID_CARD_TYPE, self._uid_fallback_parser)
+            _log.info("ready: UID-only fallback parser registered")
         _log.info("ready: registered filament update callback")
+
+    def _uid_fallback_parser(self, card_data):
+        info = mifare_classic.uid_only_struct(filament_protocol.FILAMENT_INFO_STRUCT, card_data)
+        _log.info("UID-only fallback: card_uid=%s", info.get('CARD_UID'))
+        return filament_protocol.FILAMENT_PROTO_OK, info
 
     def _dispatch_parsers(self, raw_bytes):
         _log.info("_dispatch_parsers called bytes=%d parsers=%d",

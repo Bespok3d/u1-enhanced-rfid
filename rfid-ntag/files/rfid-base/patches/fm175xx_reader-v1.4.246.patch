@@ -1,22 +1,37 @@
---- a/klippy/extras/fm175xx_reader.py	2026-05-27 01:38:01
-+++ b/klippy/extras/fm175xx_reader.py	2026-05-27 01:38:01
-@@ -122,6 +122,7 @@
+--- a/klippy/extras/fm175xx_reader.py
++++ b/klippy/extras/fm175xx_reader.py
+@@ -122,6 +122,9 @@
  # RFID card type
  FM175XX_MIFARE_CARD_TYPE_UNKNOWN        = 0xFF  # unknown type
  FM175XX_MIFARE_CARD_TYPE_M1             = 0x08  # M1
 +FM175XX_MIFARE_CARD_TYPE_NTAG          = 0x00  # NFC Forum Type 2 (NTAG213/215/216, Ultralight)
++FM175XX_MIFARE_CARD_TYPE_M1_UID        = 0x88  # Mifare Classic UID-only fallback (foreign key, no decode)
++FM175XX_DESFIRE_RANDOM_UID_PREFIX      = 0x08  # NXP AN10927: random-UID first byte, not a stable tracking key
  
  # About M1 Card
  # EEPROM
-@@ -230,6 +231,7 @@
+@@ -230,6 +233,8 @@
          self.__card_info_clear_flag = 0
          self.__stop_event = threading.Event()
          self.__card_info_deal_cb = None
 +        self._card_type_handlers = {}
++        self._card_claim_handlers = []
          self.__picc_a = Fm175xxPiccMetaData()
  
          # self test
-@@ -962,6 +964,16 @@
+@@ -952,6 +957,11 @@
+                                                                    retry_times_3)
+                             if (FM175XX_OK != ret.err_code):
+                                 card_op_result = FM175XX_CARD_READ_ERR
++                                claim = self._dispatch_card_claim()
++                                if claim is not None:
++                                    card_type, card_data, card_op_result = claim
++                                    if card_op_result == FM175XX_OK:
++                                        self.__card_info_read_flag &= ~(1 << ch) & 0xFFFFFFFF
+                             else:
+                                 card_data = ret.out_param[0:FM175XX_M1_CARD_EEPROM_SIZE]
+                                 card_op_result = FM175XX_OK
+@@ -962,6 +972,16 @@
                                      self.__self_test_success_cnt += 1
                                      if (self.__card_info_deal_cb != None):
                                          self.__card_info_deal_cb(ch, card_op, card_op_result, card_type, card_data)
@@ -33,11 +48,10 @@
                          break
  
                      # halt a card
-@@ -1023,6 +1035,33 @@
+@@ -1023,6 +1043,98 @@
          except Exception as e:
              logging.error("Param[cb] is not a callable function")
  
-+
 +    def register_card_type_handler(self, sak, handler):
 +        self._card_type_handlers[sak] = handler
 +
@@ -64,6 +78,72 @@
 +                return FM175XX_CARD_READ_ERR, None
 +            results.extend(result.out_param.recv_buff[0:16])
 +        return FM175XX_OK, results
++
++    def transceive(self, send_bytes, recv_max, send_crc=True, recv_crc=True, bits_to_send=0):
++        cmd = Fm175xxCmdMetaData()
++        cmd.send_crc_en = FM175XX_SET if send_crc else FM175XX_RESET
++        cmd.recv_crc_en = FM175XX_SET if recv_crc else FM175XX_RESET
++        cmd.send_buff = list(send_bytes)
++        cmd.recv_buff = [0] * (recv_max if recv_max else 64)
++        cmd.bytes_to_send = len(send_bytes)
++        cmd.bits_to_send = bits_to_send
++        cmd.bits_to_recv = 0
++        cmd.bytes_to_recv = recv_max
++        cmd.timeout = 10
++        cmd.cmd = FM175XX_CMD_TRANSCEIVE
++        result = self.__command_exe(cmd)
++        return result.err_code, list(result.out_param.recv_buff[0:result.out_param.bytes_recved])
++
++    def mifare_authenticate(self, key_type, sector, key, uid):
++        return self.__reader_a_mifare_auth(key_type, sector, key, uid)
++
++    def selected_card_uid(self):
++        return list(self.__picc_a.UID)
++
++    def selected_card_sak(self):
++        return self.__picc_a.SAK[0]
++
++    def selected_card_atqa(self):
++        return list(self.__picc_a.ATQA)
++
++    def register_card_handler(self, claim, reader_fn):
++        self._card_claim_handlers.append((claim, reader_fn))
++
++    def reactivate_card(self):
++        self.__reader_a_init()
++        self.__set_carrier_wave(FM175XX_CW_ENABLE)
++        return self.__reader_a_activate()
++
++    def read_mifare_classic(self, key_type, sector, key, uid, blocks):
++        auth = self.__reader_a_mifare_auth(key_type, sector, key, uid)
++        if auth != FM175XX_OK:
++            return FM175XX_CARD_AUTH_ERR, None
++        data = []
++        for block in blocks:
++            err, recv = self.transceive([0x30, block], 16)
++            if err != FM175XX_OK or len(recv) != 16:
++                return FM175XX_CARD_READ_ERR, None
++            data.extend(recv)
++        return FM175XX_OK, data
++
++    def _dispatch_card_claim(self):
++        for claim, reader_fn in self._card_claim_handlers:
++            try:
++                if not claim(self):
++                    continue
++                card_type, card_data, result = reader_fn(self)
++                if result == FM175XX_OK:
++                    return card_type, card_data, result
++            except Exception as claim_err:
++                logging.error("card claim handler: %s", claim_err)
++        return self._uid_fallback_result()
++
++    def _uid_fallback_result(self):
++        uid = list(self.__picc_a.UID[0:4])
++        if uid[0] == FM175XX_DESFIRE_RANDOM_UID_PREFIX:
++            return None
++        return FM175XX_MIFARE_CARD_TYPE_M1_UID, uid, FM175XX_OK
++
      def request_read_card_info(self, channel):
          self.__card_info_clear_flag &= ~(1 << channel) & 0xFFFFFFFF
          self.__card_info_read_flag |= (1 << channel)
