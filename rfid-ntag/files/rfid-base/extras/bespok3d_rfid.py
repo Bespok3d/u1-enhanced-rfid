@@ -33,6 +33,10 @@ def _setup_logger():
 _log = _setup_logger()
 
 
+def _is_untagged_report(info_data):
+    return info_data.get('OFFICIAL') is not True
+
+
 class Bespok3dRfid:
     def __init__(self, config):
         self.printer = config.get_printer()
@@ -112,6 +116,11 @@ class Bespok3dRfid:
                   channel, is_clear,
                   info_data.get('VENDOR', '?'), info_data.get('MAIN_TYPE', '?'),
                   info_data.get('OFFICIAL', '?'), info_data.get('SPOOL_ID', '?'))
+        if not is_clear and self._is_stale_downgrade(channel, info_data):
+            _log.warning(
+                "filament update ch=%d suppressed: no-identity report would overwrite "
+                "known-good state (mirrors Snapmaker's own official-vendor guard)", channel)
+            return
         self._filament_state[channel] = None if is_clear else info
         self._write_rfid_data()
         notify_info = None if is_clear else info
@@ -120,6 +129,14 @@ class Bespok3dRfid:
                 notify_cb(channel, notify_info, is_clear)
             except Exception as notify_err:
                 _log.error("spool_notify cb error: %s", notify_err)
+
+    def _is_stale_downgrade(self, channel, info_data):
+        current_state = self._filament_state[channel]
+        if current_state is None:
+            return False
+        if _is_untagged_report(current_state):
+            return False
+        return _is_untagged_report(info_data)
 
     def _write_rfid_data(self):
         empty = filament_protocol.FILAMENT_INFO_STRUCT

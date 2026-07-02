@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.7
+
+- Fix: a genuine Snapmaker-official spool could lose its identity the moment a print started
+  (AFC's feed motion re-triggers a fresh RFID read right at launch, and a read taken during
+  motion is more likely to glitch than one taken at rest). When the firmware's own official
+  M1 read attempt failed mid-print, the UID-only fallback (added in 0.1.6) still reported a
+  "successful" read carrying no vendor/type identity, and the shared relay layer
+  (bespok3d_rfid.py) applied that report unconditionally, overwriting the channel's
+  already-correctly-resolved spool with a blank one and notifying every downstream consumer
+  (Spoolman tracking included) of the loss. Snapmaker's own firmware already protects itself
+  against exactly this case (it ignores a report with `OFFICIAL == False` when a real vendor
+  is already recorded for that channel); the relay layer now applies the same guard, keyed
+  off the same `OFFICIAL` flag, so a no-identity report can never downgrade already-known-good
+  state; only an explicit clear (spool removed) or a genuine first-ever read on an empty
+  channel still goes through. This only ever affected official Snapmaker spools; custom-tagged
+  (NTAG/OpenSpool/etc.) filament was never routed through the UID-only fallback path and was
+  unaffected.
+
 ## 0.1.6
 
 - Claim-based card handlers + SAK 0x08 collision fix. Bambu (and other) Mifare-Classic
