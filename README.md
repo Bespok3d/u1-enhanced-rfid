@@ -12,7 +12,6 @@ u1-enhanced-rfid/
     manifest.json
     files/              # payload the daemon places on the printer
     doc/README.md       # rendered in-app; not deployed
-  scripts/{pack.sh,generate-atom.mjs}
   .github/workflows/release.yml
   dist/                 # build output (gitignored)
 ```
@@ -22,16 +21,22 @@ printer-side adapter realizes it. See `Bespok3d/doc/anatomy-of-a-plugin.md`.
 
 ## Build locally
 
+Needs Node.js 20+. Builds run through the shared `Bespok3d/b3-builder` tool:
+
 ```sh
-sh scripts/pack.sh                              # -> dist/rfid-ntag-<ver>.b3
-node scripts/generate-atom.mjs --plugin rfid-ntag     # -> dist/rfid-ntag.atom.json
+npm install github:Bespok3d/b3-builder
+npx b3-builder build --source ./rfid-ntag --atom-repo Bespok3d/u1-enhanced-rfid
+# -> dist/rfid-ntag-<ver>.b3 + dist/rfid-ntag.atom.json
 ```
 
 ## Releasing
 
-Bump `rfid-ntag/manifest.json` `version` and push to `main`. CI packs the `.b3`, cuts a release, and
-commits the atom into `Bespok3d/main-index/atoms/rfid-ntag.atom.json`. Secret: `MAIN_INDEX_TOKEN`
-(contents:write on main-index). Signing deferred.
+Bump `rfid-ntag/manifest.json` `version` and push to `main`. CI runs the `Bespok3d/b3-builder`
+Action, which packs the `.b3` and cuts a release; the `register-atoms` action from
+`Bespok3d/main-index` then registers the atom. This repo contributes atoms only and
+publishes no list of its own. Secret: `MAIN_INDEX_TOKEN` (contents:write on main-index). Signing
+deferred.
+
 ## Maintainership
 
 These plugins are published and maintained by the Bespok3d org, and several of them repackage or
