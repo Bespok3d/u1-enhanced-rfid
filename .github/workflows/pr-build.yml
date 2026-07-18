@@ -29,7 +29,8 @@ jobs:
   pr-build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read   # build only: no release, no index commit, no registration
+      contents: read        # checkout only, no release / index commit / registration
+      pull-requests: write  # post a sticky comment linking the build artifact on the PR
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +42,21 @@ jobs:
           atom-repo: ${{ github.repository }}
 
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
-          name: b3-packages
+          name: b3-packages-${{ github.event.repository.name }}
           path: |
             dist/*.b3
             dist/*.atom.json
             dist/index.json
           if-no-files-found: error
+
+      # Surface the build on the PR page, not only the Actions run: a sticky comment linking the
+      # downloadable artifact. Fires on pull_request events only; a plain branch push has no PR.
+      - name: link the artifact on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none \
+            --body "**b3-packages preview** (build only, not published). Download the packed \`.b3\` set, its atoms, and the assembled index: [b3-packages-${{ github.event.repository.name }}](${{ steps.upload.outputs.artifact-url }}). Rebuilt for commit \`${{ github.sha }}\`."
