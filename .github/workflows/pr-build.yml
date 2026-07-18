@@ -1,0 +1,62 @@
+name: pr-build
+
+# Build, test, pack, and index every plugin in this repo WITHOUT publishing, so a pull request or a
+# branch push gets a downloadable preview of exactly what would ship. Same pipeline as release, driven
+# by the one reusable Bespok3d build Action (b3-builder) with publish: 'false': it still builds the bake
+# payloads, packs the .b3 set, and runs each plugin's tests, but cuts no GitHub release and registers no
+# atoms in the main index. The produced .b3 files (plus their index atoms) upload as a run artifact,
+# downloadable from the PR's Checks tab and the Actions run page. Publishing stays main-only, in release.yml.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+    paths:
+      - '*/manifest.json'
+      - '*/files/**'
+      - '*/doc/**'
+      - '*/src/**'
+      - '*/toolchain/**'
+      - '*/tests/**'
+      - .github/workflows/pr-build.yml
+
+# A branch push and the pull_request for the same head would otherwise build twice; collapse them into
+# one run per head branch and cancel a superseded build when a newer commit lands.
+concurrency:
+  group: pr-build-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read        # checkout only, no release / index commit / registration
+      pull-requests: write  # post a sticky comment linking the build artifact on the PR
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Bespok3d/b3-builder@main
+        with:
+          unit: repo
+          bake: 'false'
+          publish: 'false'
+          atom-repo: ${{ github.repository }}
+
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: b3-packages-${{ github.event.repository.name }}
+          path: |
+            dist/*.b3
+            dist/*.atom.json
+            dist/index.json
+          if-no-files-found: error
+
+      # Surface the build on the PR page, not only the Actions run: a sticky comment linking the
+      # downloadable artifact. Fires on pull_request events only; a plain branch push has no PR.
+      - name: link the artifact on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none \
+            --body "**b3-packages preview** (build only, not published). Download the packed \`.b3\` set, its atoms, and the assembled index: [b3-packages-${{ github.event.repository.name }}](${{ steps.upload.outputs.artifact-url }}). Rebuilt for commit \`${{ github.sha }}\`."
