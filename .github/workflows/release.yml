@@ -27,13 +27,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: Bespok3d/b3-builder@main
+      - uses: Bespok3d/b3-builder@76d815a56dc5708b3d0c3a587fc2b027deca4640  # main @ 2026-07-21
         with:
           unit: repo
+          # Per-repo Actions secret today (GitHub Free cannot org-secret private repos); becomes ONE org
+          # secret every repo inherits when the repos go public. See b3-builder README (secrets model).
+          signing-key: ${{ secrets.REGISTRY_SIGNING_KEY }}
           bake: 'false'
           atom-repo: ${{ github.repository }}
 
-      - uses: Bespok3d/main-index/.github/actions/register-atoms@main
+      - uses: Bespok3d/main-index/.github/actions/register-atoms@86a4da90f20800ac40f6a91f03a6c0243e1b1d42  # main @ 2026-07-19
         with:
           # Per-repo Actions secret today (GitHub Free cannot org-secret private repos); becomes ONE org
           # secret every repo inherits when the repos go public.
