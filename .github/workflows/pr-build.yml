@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: Bespok3d/b3-builder@76d815a56dc5708b3d0c3a587fc2b027deca4640  # main @ 2026-07-21
+      - uses: Bespok3d/b3-builder@fe43aee920e620c6272a88f395499a789329e459  # main @ 2026-07-22
         with:
           unit: repo
           bake: 'false'
