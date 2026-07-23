@@ -2,6 +2,7 @@
   "name": "rfid-ntag",
   "title": "RFID Spool Reader",
   "version": "0.1.7",
+  "author": "bespoked",
   "description": "USB RFID reader picks up OpenSpool-encoded NTAG215 cards. Writes the current spool's metadata to rfid_data.json on every card event so the rest of the stack just knows.",
   "tagline": "NTAG215/OpenSpool RFID: your filament knows what it is.",
   "category": "filament",
