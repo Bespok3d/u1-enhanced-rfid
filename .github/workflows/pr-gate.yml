@@ -18,6 +18,8 @@ name: pr-gate
 # would fail).
 on:
   pull_request:
+  push:
+    branches: [dev, main]
 
 jobs:
   gate:
