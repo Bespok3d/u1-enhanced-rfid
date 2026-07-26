@@ -14,17 +14,48 @@ is suspicious; rule of three; extend upstream additively; never commit a real se
 and the working procedure. If you use an AI assistant (many contributors do), point it at that file;
 `AGENTS.md` sends non-Claude tools there too.
 
+## Set up your environment
+
+Clone with the submodule. `lib_bespok3d` carries the shared gate helpers and the workspace
+detectors, and nothing in this repo checks out green without it:
+
+```sh
+git clone --recurse-submodules git@github.com:Bespok3d/u1-enhanced-rfid.git
+cd u1-enhanced-rfid
+```
+
+Already cloned, or seeing `lib_bespok3d/tooling/gate-lib.sh: No such file or directory`? Run this
+once from the repo root:
+
+```sh
+git submodule sync --recursive && git submodule update --init --recursive
+```
+
+The `sync` half matters on an existing clone: it repoints the submodule at the relative URL, so the
+submodule is fetched over whatever protocol you cloned this repo with. Without it, a clone made over
+SSH still tries to fetch the submodule over HTTPS and stops at a `Username for 'https://github.com':`
+prompt.
+
+You also need these on your machine:
+
+| Tool | Why | Install on macOS |
+| --- | --- | --- |
+| Python 3.11 | the printer's runtime; the gate refuses to lint or test on any other version | `brew install python@3.11`, or `brew install uv` and the gate provisions one for you |
+| Node 20 or newer | runs the shared detectors (em-dash guard, workflow pinning) | `brew install node` |
+| shellcheck | lints this repo's shell scripts; the gate skips it with a note if it is absent | `brew install shellcheck` |
+
+The gate builds its own Python tool venv under `lib_bespok3d/tooling/` the first time you run it.
+Nothing is installed into your system Python.
+
 ## Develop
 
 ```sh
 bash scripts/check.sh
 ```
 
-The gate needs the `lib_bespok3d` submodule; if you cloned without it, run
-`git submodule update --init` first. It runs the shared workspace detectors (the em-dash guard,
-workflow-pinning, shellcheck) plus whatever language layer the plugin ships (ruff, mypy, and pytest
-for a plugin that carries Python). Run it before every push; CI runs the same gate and blocks a
-release on failure.
+The gate runs the shared workspace detectors (the em-dash guard, workflow-pinning, shellcheck) plus
+whatever language layer the plugin ships (ruff, mypy, and pytest for a plugin that carries Python).
+Run it before every push; CI runs the same gate and blocks a release on failure.
 
 ## Release
 
