@@ -8,7 +8,8 @@ name: pr-gate
 # lives in a SEPARATE private repo that GITHUB_TOKEN cannot read, so it is fetched in its own step with a
 # read token (MAIN_INDEX_TOKEN). The main checkout runs with persist-credentials off so it does not leave
 # GITHUB_TOKEN in git config, where it would otherwise be reused for the submodule fetch and 403 on the
-# private repo. The submodule URL in .gitmodules is HTTPS so the token applies.
+# private repo. The submodule URL in .gitmodules is relative, so
+# in CI it resolves against this repo's HTTPS origin and the token rewrite applies.
 #
 # This is a check-only run: it never builds, packs, signs or publishes, so no signing key is in scope.
 # The single secret it holds is the submodule read token. It is deliberately NOT named pr-build.yml: that

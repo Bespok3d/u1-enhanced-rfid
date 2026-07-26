@@ -64,7 +64,9 @@ templates and places the files, wires the symlinks, and restarts the named servi
    the story needs: no speculative features, no defensive code for cases that cannot happen.
 3. **Write the change** to the rules above.
 4. **Run the gate and make it green:** `bash scripts/check.sh`. The gate needs the `lib_bespok3d`
-   submodule; if you cloned without it, run `git submodule update --init` first.
+   submodule; if you cloned without it, run
+   `git submodule sync --recursive && git submodule update --init --recursive` first
+   (CONTRIBUTING.md has the whole setup).
    This repo ships config, patches, assets, and shell, so the gate runs the shared workspace detectors:
    workflow-pinning, the em-dash guard, and shellcheck. It also runs ruff, mypy, and pytest over the
    plugin's Python (see `scripts/check.sh` for the exact targets).

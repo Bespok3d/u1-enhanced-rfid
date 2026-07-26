@@ -14,13 +14,34 @@ is suspicious; rule of three; extend upstream additively; never commit a real se
 and the working procedure. If you use an AI assistant (many contributors do), point it at that file;
 `AGENTS.md` sends non-Claude tools there too.
 
-## Set up your environment
+## Quick start: from clone to pull request
 
-Clone with the submodule. `lib_bespok3d` carries the shared gate helpers and the workspace
-detectors, and nothing in this repo checks out green without it:
+Six steps. A change is ready for review when all six are done and the gate is green.
+
+### 1. Install the tools
+
+| Tool | Why | macOS | Linux |
+| --- | --- | --- | --- |
+| git 2.23 or newer | `git switch` and cloning submodules in one pass | preinstalled, or `brew install git` | `sudo apt install git` |
+| Python 3.11 | the printer's runtime; the gate pins it and refuses to run on another version | `brew install python@3.11`, or `brew install uv` | install `uv` (`curl -LsSf https://astral.sh/uv/install.sh \| sh`) and the gate provisions 3.11 itself |
+| Node 20 or newer | runs the shared detectors (the em-dash guard, workflow pinning) | `brew install node` | `nvm install 20`; distro packages are usually older than 20 |
+| shellcheck | lints this repo's shell scripts | `brew install shellcheck` | `sudo apt install shellcheck` |
+| GitHub CLI (optional) | opens the pull request from the terminal | `brew install gh` | see [cli.github.com](https://cli.github.com) |
+
+You also need an SSH key on your GitHub account (`ssh -T git@github.com` should greet you by name) and
+access to the Bespok3d org: these repos are private during the beta, so ask the maintainer to add you
+before you clone.
+
+The gate builds its own Python tool venv under `lib_bespok3d/tooling/` the first time you run it.
+Nothing is installed into your system Python.
+
+### 2. Clone with the submodule
+
+`lib_bespok3d` carries the shared gate helpers and the workspace detectors, and nothing in this repo
+checks out green without it. Changes are made on `dev`, so clone that branch:
 
 ```sh
-git clone --recurse-submodules git@github.com:Bespok3d/u1-enhanced-rfid.git
+git clone --recurse-submodules --branch dev git@github.com:Bespok3d/u1-enhanced-rfid.git
 cd u1-enhanced-rfid
 ```
 
@@ -36,26 +57,41 @@ submodule is fetched over whatever protocol you cloned this repo with. Without i
 SSH still tries to fetch the submodule over HTTPS and stops at a `Username for 'https://github.com':`
 prompt.
 
-You also need these on your machine:
+### 3. Branch off `dev`
 
-| Tool | Why | Install on macOS |
-| --- | --- | --- |
-| Python 3.11 | the printer's runtime; the gate refuses to lint or test on any other version | `brew install python@3.11`, or `brew install uv` and the gate provisions one for you |
-| Node 20 or newer | runs the shared detectors (em-dash guard, workflow pinning) | `brew install node` |
-| shellcheck | lints this repo's shell scripts; the gate skips it with a note if it is absent | `brew install shellcheck` |
+```sh
+git switch dev && git pull
+git switch -c <short-name-for-your-change>
+```
 
-The gate builds its own Python tool venv under `lib_bespok3d/tooling/` the first time you run it.
-Nothing is installed into your system Python.
+### 4. Make the change
 
-## Develop
+Only what your user story needs. Keep the plugin's `doc/README.md` and `doc/CHANGELOG.md` current when
+behavior or config changes, and add a regression test where the repo has a test layer for it. The rules
+the reviewer applies are in [CLAUDE.md](CLAUDE.md), and RULE ZERO (no em-dash, no en-dash) covers your
+commit message too.
+
+### 5. Run the gate until it is green
 
 ```sh
 bash scripts/check.sh
 ```
 
-The gate runs the shared workspace detectors (the em-dash guard, workflow-pinning, shellcheck) plus
-whatever language layer the plugin ships (ruff, mypy, and pytest for a plugin that carries Python).
-Run it before every push; CI runs the same gate and blocks a release on failure.
+It runs the shared workspace detectors (the em-dash guard, workflow pinning, shellcheck) plus whatever
+language layer the plugin ships (ruff, mypy and pytest for a plugin that carries Python). On a failure,
+fix the cause. If a detector is genuinely wrong about one line, justify that one line at the smell
+(`# gate-allow <metric>: <reason>`); never mute a check to make a number go down.
+
+### 6. Commit, push and open the pull request
+
+```sh
+git commit -am "<what changed and why>"
+git push -u origin <your-branch>
+gh pr create --base dev --fill      # or open the link that git push prints
+```
+
+The pull request targets `dev`. CI runs this same `scripts/check.sh` on it, so a red gate is not
+reviewable and blocks the release.
 
 ## Release
 
