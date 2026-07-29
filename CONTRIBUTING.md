@@ -99,6 +99,11 @@ Bump a plugin's `manifest.json` `version`. On merge, the `b3-builder` CI Action 
 signs it, cuts a release, and registers it in the org index. Do not hand-edit `index.json`, the
 `.atom.json`, `index.json.sig`, or anything under `dist/`: those are generated and signed by CI.
 
+A version bump also changes what the desktop app bundles offline, and the app keeps a committed
+snapshot of that bundle. Once your manifest change is in, run `npm run golden:refresh` in the
+`Bespok3d-desktop` checkout and commit the refreshed snapshot with it: the app's gate stays red
+until someone does.
+
 ## What a good change looks like
 
 - Scoped to a clear user story; only what the story needs.
