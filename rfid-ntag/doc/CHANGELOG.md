@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8
+
+- Licensing only, nothing about how the plugin works has changed. The files it installs that came
+  from other projects now carry those projects' own licence notices, plus a line recording what
+  Bespok3d changed in them and when.
+
 ## 0.1.7
 
 - Fix: a genuine Snapmaker-official spool could lose its identity the moment a print started

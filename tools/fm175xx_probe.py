@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
 """Standalone fm175xx RFID reader probe + register sweep for the Snapmaker U1.
 
 Drives the reader directly over SPI + GPIO, so it is a hardware debug tool for tags that

@@ -1,7 +1,8 @@
 {
   "name": "rfid-ntag",
   "title": "RFID Spool Reader",
-  "version": "0.1.7",
+  "version": "0.1.8",
+  "license": "GPL-3.0-only",
   "author": "bespoked",
   "description": "USB RFID reader picks up OpenSpool-encoded NTAG215 cards. Writes the current spool's metadata to rfid_data.json on every card event so the rest of the stack just knows.",
   "tagline": "NTAG215/OpenSpool RFID: your filament knows what it is.",
@@ -12,7 +13,7 @@
   "homepage": "https://github.com/bespok3d-org/plugin-rfid-ntag",
   "changelog": "doc/CHANGELOG.md",
   "published_at": "2025-09-02",
-  "updated_at": "2026-07-01",
+  "updated_at": "2026-07-28",
   "publisher": "PLACEHOLDER",
   "provides": [
     {

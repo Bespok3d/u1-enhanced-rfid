@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
 """Deep RECEIVER-side register sweep for the U1 fm175xx, validated by a full ISO 14443-A
 activation (WUPA -> anticollision -> select). Only a stable, BCC-valid UID counts as a hit, so
 receiver noise cannot fake a read. Touches only volatile receiver registers; resets between probes.

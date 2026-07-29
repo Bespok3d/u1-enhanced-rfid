@@ -1,3 +1,6 @@
+# Written by the Bespok3d project. About a fifth of the lines it adds come from
+# 03-fm175xx-reader-enabled-guard.patch in the Extended Firmware overlay 13-patch-rfid
+# (paxx12), GPL-3.0. Origin recorded 2026-07-28.
 --- a/klippy/extras/fm175xx_reader.py
 +++ b/klippy/extras/fm175xx_reader.py
 @@ -121,6 +121,9 @@

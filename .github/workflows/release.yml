@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
 name: build-and-release
 
 # Build, test, pack, and release every plugin in this repo through the one reusable Bespok3d build

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
 name: pr-gate
 
 # Every pull request runs this repo's own check suite (scripts/check.sh) plus the shared em-dash and

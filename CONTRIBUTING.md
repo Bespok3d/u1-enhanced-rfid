@@ -111,3 +111,29 @@ signs it, cuts a release, and registers it in the org index. Do not hand-edit `i
 - The maintainer owns git history and releases; submit changes as a pull request against `dev`.
 - Never SSH-mutate or reconfigure a live printer without explicit authorization; a serial port on a
   printer may be a live Klipper MCU link. Read-only diagnosis is fine.
+
+## Signing off your work
+
+Every commit must carry a `Signed-off-by` line. It is your statement that you wrote the change, or
+that you otherwise have the right to contribute it, under the terms of the Developer Certificate of
+Origin (<https://developercertificate.org/>). Git writes the line for you:
+
+```sh
+git commit -s -m "your message"
+```
+
+A pull request whose commits are not signed off cannot be merged.
+
+## Licence
+
+This repository is under the GNU General Public License, version 3. The full text is in
+[LICENSE](LICENSE).
+
+Most of Bespok3d is under the GNU Affero General Public License. This repository is under the plain
+GNU General Public License instead because it ships third-party code released under that licence, and
+that code cannot be relicensed. Each unit's `doc/ATTRIBUTIONS.md` records what is shipped and where it
+came from.
+
+By contributing you agree that your contribution is licensed under those same terms. You keep the
+copyright in what you write. There is no copyright assignment and no contributor licence agreement to
+sign.
