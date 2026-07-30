@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9
+
+- Doc only, nothing about how the plugin works has changed. The advice on naming filaments for a
+  hand-written tag was wrong: Snapmaker Orca only matches filaments it ships itself, so `Generic PLA`
+  lands exactly and `Generic PLA Basic` does not, because there is no such built-in. Anything Orca
+  does not recognise syncs its colour and falls back to `Generic <type>`.
+
 ## 0.1.8
 
 - Licensing only, nothing about how the plugin works has changed. The files it installs that came

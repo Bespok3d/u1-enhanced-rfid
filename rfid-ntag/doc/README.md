@@ -64,8 +64,12 @@ Any NFC app that writes an NDEF record with MIME type `application/json` also wo
 `bed_max_temp`, `subtype` (Basic, Rapid, Silk...), `alpha` (00-FF), `additional_color_hexes`
 (up to 4, for multicolor), `weight` (grams), `diameter` (mm).
 
-To show up correctly in Snapmaker Orca, name filaments `<brand> <type> <subtype>`, for
-example `Generic PLA Basic`.
+`brand`, `type` and `subtype` are what the printer reports as the filament's name, and what
+Snapmaker Orca's **Sync Filament Information** then tries to match. Orca only ever matches against
+filaments it ships itself, so the name has to be one of those to land exactly: `Generic PLA` does,
+`Generic PLA Basic` does not (there is no such built-in). Anything Orca does not recognise syncs its
+colour and falls back to `Generic <type>`. That is Orca's own behaviour, not something the printer
+controls; the Spoolman Bridge doc has the full story under "Limits worth knowing about".
 
 ## Troubleshooting
 
