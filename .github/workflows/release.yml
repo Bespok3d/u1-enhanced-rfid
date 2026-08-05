@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: Bespok3d/b3-builder@06a36c4f6d487892d2a784945cd40359d80cf72c  # main @ 2026-07-31
+      - uses: Bespok3d/b3-builder@5abdeb52902b6096c59134afcf52a479e6588e71  # main @ 2026-08-06
         with:
           unit: repo
           # Per-repo Actions secret today (GitHub Free cannot org-secret private repos); becomes ONE org
