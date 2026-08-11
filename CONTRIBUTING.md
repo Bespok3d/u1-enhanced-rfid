@@ -14,6 +14,11 @@ is suspicious; rule of three; extend upstream additively; never commit a real se
 and the working procedure. If you use an AI assistant (many contributors do), point it at that file;
 `AGENTS.md` sends non-Claude tools there too.
 
+**Writing a plugin of your own?** The full plugin documentation lives with the build tool:
+[Bespok3d/b3-builder/doc](https://github.com/Bespok3d/b3-builder/tree/main/doc). It covers the
+anatomy of a plugin, its manifest and its `.b3` package, the six kinds of plugin, signing, the
+release Action, channels, local testing and publishing.
+
 ## Quick start: from clone to pull request
 
 Six steps. A change is ready for review when all six are done and the gate is green.
