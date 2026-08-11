@@ -11,7 +11,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 B3D_TOOLING="${B3D_TOOLING:-$REPO_ROOT/lib_bespok3d/tooling}"
 # lib_bespok3d is a submodule. A clone made without it leaves an empty directory here, so say what
 # is actually wrong instead of letting every check below fail on a missing file.
-if [ ! -f "$B3D_TOOLING/gate-lib.sh" ] || [ ! -f "$B3D_TOOLING/release-trigger-detector.mjs" ]; then
+if [ ! -f "$B3D_TOOLING/gate-lib.sh" ] || [ ! -f "$B3D_TOOLING/release-trigger-detector.mjs" ] || [ ! -f "$B3D_TOOLING/manifest-origin-detector.mjs" ]; then
     echo "The shared gate helpers are missing or older than the checks this gate runs:" >&2
     echo "the lib_bespok3d submodule is not checked out, or is pinned to an older commit." >&2
     echo "Run this once from the repo root, then try again:" >&2
@@ -42,6 +42,7 @@ run_check "mypy"    mypy_in_dir "$PLUGIN_DIR" \
     "$RFID_SUPPORT/payload_mapper.py"
 
 release_trigger_check "$REPO_ROOT"
+manifest_origin_check "$REPO_ROOT"
 workflow_pinning_check "$REPO_ROOT"
 em_dash_check "$REPO_ROOT"
 shellcheck_repo "$REPO_ROOT"
