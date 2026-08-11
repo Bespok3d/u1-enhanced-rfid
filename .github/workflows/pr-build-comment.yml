@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
+name: pr-build-comment
+
+# Put the pr-build package link on the pull request it belongs to.
+#
+# pr-build cannot do it itself. GitHub hands a `pull_request` run from a FORK a read-only token no
+# matter what the workflow's permissions block asks for, so its own comment attempt fails and the
+# contributor sees a red check on a build that in fact passed. This is the documented split: this
+# workflow starts on `workflow_run`, which means it runs in THIS repo, from the copy of this file on
+# the default branch, with a token that can write.
+#
+# SECURITY. This job never checks out the pull request and never runs a line of its code. It reads one
+# number and posts one comment. The number arrives in an artifact written by the fork's own run, so it
+# is treated as hostile input: it must be digits and nothing else, and the pull request it names must
+# be sitting on the same commit the run built, or nothing is posted. That second check is what stops a
+# fork from making this bot comment on somebody else's pull request. `pull_request_target` is the
+# shortcut that is NOT taken here: it would hand a write token to a job that can see the fork's tree,
+# which is the exact hazard this shape exists to avoid.
+on:
+  workflow_run:
+    workflows: [pr-build]
+    types: [completed]
+
+# The comment names one commit, so one run per commit is enough. A superseded run is not cancelled:
+# it may already be half way through posting.
+concurrency:
+  group: pr-build-comment-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  comment:
+    # A branch push records no pull request number, and a build that failed has nothing to link.
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read         # read the finished run and download its pr-number artifact
+      contents: read        # no checkout: repository metadata only
+      pull-requests: write  # the one write this workflow exists for
+    steps:
+      # No checkout, so `gh` is told which repo it is talking to through GH_REPO rather than a git
+      # remote. Every value it acts on comes from the workflow_run event or from this repo's API,
+      # never from the pull request's tree.
+      - name: post the package link on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          BUILT_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -eu
+          gh run download "$RUN_ID" --name pr-number --dir "$RUNNER_TEMP/pr-number"
+          pull_request=$(tr -d '\r\n' < "$RUNNER_TEMP/pr-number/pr-number.txt" | cut -c 1-16)
+          # Rejected, not sanitised: anything that is not a plain number was not written by the step
+          # this workflow trusts, and guessing what it meant is how an injection gets through.
+          case "$pull_request" in
+            '' | *[!0-9]*)
+              echo "the pr-number artifact does not hold a pull request number" >&2
+              exit 1
+              ;;
+          esac
+          # The run says which commit it built. A pull request sitting on a different commit is not
+          # the one that produced this artifact, so the number was forged and the comment would land
+          # on somebody else's page.
+          claimed_head=$(gh pr view "$pull_request" --json headRefOid --jq .headRefOid)
+          if [ "$claimed_head" != "$BUILT_COMMIT" ]; then
+            echo "PR #$pull_request is on $claimed_head, not the built commit $BUILT_COMMIT: not commenting" >&2
+            exit 1
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
+          package_artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name | startswith("b3-packages")) | .id' | head -n 1)
+          download="$run_url"
+          if [ -n "$package_artifact" ]; then
+            download="$run_url/artifacts/$package_artifact"
+          fi
+          gh pr comment "$pull_request" --edit-last --create-if-none \
+            --body "**b3-packages preview** (build only, not published). Download the packed \`.b3\` set, its atoms, and the assembled index: [b3-packages-${GITHUB_REPOSITORY#*/}]($download). Rebuilt for commit \`$BUILT_COMMIT\`. [Build log]($run_url)."

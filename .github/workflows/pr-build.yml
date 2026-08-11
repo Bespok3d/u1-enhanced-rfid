@@ -31,8 +31,7 @@ jobs:
   pr-build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read        # checkout only, no release / index commit / registration
-      pull-requests: write  # post a sticky comment linking the build artifact on the PR
+      contents: read  # checkout only: no release, no index commit, no comment (see pr-build-comment.yml)
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +43,6 @@ jobs:
           atom-repo: ${{ github.repository }}
 
       - uses: actions/upload-artifact@v4
-        id: upload
         with:
           name: b3-packages-${{ github.event.repository.name }}
           path: |
@@ -53,12 +51,21 @@ jobs:
             dist/index.json
           if-no-files-found: error
 
-      # Surface the build on the PR page, not only the Actions run: a sticky comment linking the
-      # downloadable artifact. Fires on pull_request events only; a plain branch push has no PR.
-      - name: link the artifact on the PR
+      # A pull request FROM A FORK gets a read-only token whatever this workflow asks for, so this job
+      # cannot post the comment that links the build: the attempt fails and the contributor sees a red
+      # check on a build that passed. It records the pull request number instead, and
+      # pr-build-comment.yml posts the link from this repo, where the token can write. The number has
+      # to travel as an artifact: a workflow_run started by a fork's pull request carries an empty
+      # pull_requests list, so a follow-up run has no other way to learn which pull request it was.
+      - name: record the PR number for the comment workflow
         if: github.event_name == 'pull_request'
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none \
-            --body "**b3-packages preview** (build only, not published). Download the packed \`.b3\` set, its atoms, and the assembled index: [b3-packages-${{ github.event.repository.name }}](${{ steps.upload.outputs.artifact-url }}). Rebuilt for commit \`${{ github.sha }}\`."
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: printf '%s' "$PR_NUMBER" > "$RUNNER_TEMP/pr-number.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: pr-number
+          path: ${{ runner.temp }}/pr-number.txt
+          if-no-files-found: error
