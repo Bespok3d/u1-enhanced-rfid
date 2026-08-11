@@ -8,15 +8,14 @@ name: build-and-release
 # registration is a separate org-owned step.
 on:
   push:
-    branches: [main]
-    paths:
-      - '*/manifest.json'
-      - '*/files/**'
-      - '*/doc/**'
-      - '*/src/**'
-      - '*/toolchain/**'
-      - '*/tests/**'
-      - .github/workflows/release.yml
+    tags:
+      # A release is published by a version tag and by nothing else. A push to main used to publish,
+      # which handed every enrolled printer a package built from whatever main happened to hold, work
+      # in progress included. scripts/tag_version_guard.sh refuses a tag naming a plugin this repo
+      # does not hold, or a number the plugin's manifest does not declare, so the tag cannot lie
+      # about what it publishes. The shared release-trigger detector fails the gate if a branch
+      # trigger is ever added back.
+      - 'plugin-*-v*'
   workflow_dispatch:
 
 jobs:
@@ -28,6 +27,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # The Run workflow button stays usable: this step, not a job level `if`, is what decides.
+      # A manual run against a release tag republishes it; a manual run against a branch is refused
+      # here, loudly, instead of skipping the job and reporting success.
+      - name: Refuse a ref that is not a plugin release tag
+        run: sh scripts/tag_version_guard.sh "${{ github.ref_name }}"
 
       - uses: Bespok3d/b3-builder@5abdeb52902b6096c59134afcf52a479e6588e71  # main @ 2026-08-06
         with:
