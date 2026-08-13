@@ -147,7 +147,8 @@ class RfidNtag:
                 raise web_request.error(f"unsupported fields: {', '.join(sorted(params.keys()))}")
             filament_info['OFFICIAL'] = has_params
             if self._should_apply(channel, has_params):
-                detector.set_filament_info(channel, filament_info)
+                detector.set_filament_info(
+                    channel, self._rfid_hub.apply_generic_vendor(filament_info))
             web_request.send({'state': 'success'})
         except Exception as err:
             _log.error("filament_detect/set: %s", str(err))

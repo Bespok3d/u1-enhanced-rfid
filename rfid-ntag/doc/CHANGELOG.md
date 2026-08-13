@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.11
+
+- Fix: 0.1.10 could stop the printer from starting. If the new setting did not reach the printer
+  with the plugin, Klipper refused the config and halted, and the plugin was switched off to keep
+  the printer usable. A setting that does not arrive, or arrives unreadable, now simply reads as on,
+  which is what it ships as.
+- Worth knowing when you update: a spool that is already loaded keeps the name it was filed under.
+  Take it out and put it back and it appears as `Generic`. Only spools loaded before the update need
+  it, and only once.
+
+## 0.1.10
+
+- Fix: your tagged spools show up in Snapmaker Orca. Before, a spool of any brand but Snapmaker was
+  read correctly off its tag and then listed nowhere: Orca drew the **Machine Filament** header with
+  nothing under it, and said nothing about why. The printer now reports such a spool as `Generic`
+  plus its material, the only name Orca can match, so the spool appears. The printer's own screen
+  shows `Generic` too, and Snapmaker's own spools keep their name.
+- New setting, **Show my spools in Snapmaker Orca**, on by default. Turn it off and the brand written
+  on the tag is reported everywhere again, with Orca back to listing nothing for third-party spools.
+
 ## 0.1.9
 
 - Doc only, nothing about how the plugin works has changed. The advice on naming filaments for a

@@ -67,9 +67,27 @@ Any NFC app that writes an NDEF record with MIME type `application/json` also wo
 `brand`, `type` and `subtype` are what the printer reports as the filament's name, and what
 Snapmaker Orca's **Sync Filament Information** then tries to match. Orca only ever matches against
 filaments it ships itself, so the name has to be one of those to land exactly: `Generic PLA` does,
-`Generic PLA Basic` does not (there is no such built-in). Anything Orca does not recognise syncs its
-colour and falls back to `Generic <type>`. That is Orca's own behaviour, not something the printer
-controls; the Spoolman Bridge doc has the full story under "Limits worth knowing about".
+`Generic PLA Basic` does not (there is no such built-in), and `Elegoo PETG Basic` does not either,
+because Orca ships nothing under a third-party brand. That is Orca's own behaviour, not something the
+printer controls; the Spoolman Bridge doc has the full story under "Limits worth knowing about".
+
+## Show my spools in Snapmaker Orca
+
+A setting of this plugin, on by default. On, every spool whose tag says any brand other than
+Snapmaker is reported as `Generic` plus the material, with no sub-type, because those are the only
+filament names Orca can match: your loaded spools then appear under **Machine Filament** instead of
+the list coming up empty. The printer's own screen shows `Generic` too. Snapmaker's own spools are
+never renamed.
+
+A spool that was already loaded when you installed or changed this setting keeps the name it was filed
+under until you take it out and put it back, because the printer only files a spool again when the
+slot changes.
+
+Off, the brand written on the tag is reported everywhere, which is what you want if you read the tags
+with something other than Orca. Orca will then list nothing for anything but Snapmaker spools.
+
+Change it from the plugin's settings in the Bespok3d app; the printer picks it up on the next Klipper
+restart.
 
 ## Troubleshooting
 

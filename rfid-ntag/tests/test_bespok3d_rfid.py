@@ -7,55 +7,9 @@ _rfid_filament_info_update_cb. These tests exercise Bespok3dRfid._on_filament_up
 directly, without going through Klipper's config/printer objects (the guard under test
 does not touch either).
 """
-import importlib
-import sys
-import types
-from pathlib import Path
+from conftest import load_printer_extra
 
-EXTRAS_DIR = Path(__file__).resolve().parent.parent / "files" / "rfid-base" / "extras"
-
-
-def _install_stub_package():
-    """Load bespok3d_rfid.py as extras_stub.bespok3d_rfid so its `from . import` resolves.
-
-    Mirrors the real deployment: on the printer, bespok3d_rfid.py lives inside Klipper's
-    klippy.extras package alongside Snapmaker's own filament_protocol.py, so its relative
-    import resolves to real sibling modules. Here the stub package supplies a minimal
-    filament_protocol (matching FILAMENT_INFO_STRUCT / OFFICIAL) and an unused mifare_classic
-    placeholder, so the module under test imports exactly as it does on-device.
-    """
-    package_name = "extras_stub"
-    package = types.ModuleType(package_name)
-    package.__path__ = [str(EXTRAS_DIR)]
-    sys.modules[package_name] = package
-
-    filament_protocol = types.ModuleType(f"{package_name}.filament_protocol")
-    filament_protocol.FILAMENT_INFO_STRUCT = {
-        'VENDOR': 'NONE',
-        'MAIN_TYPE': 'NONE',
-        'OFFICIAL': False,
-        'CARD_UID': 0,
-        'SPOOL_ID': 0,
-    }
-    filament_protocol.FILAMENT_PROTO_OK = 0
-    filament_protocol.FILAMENT_PROTO_ERR = 1
-    sys.modules[f"{package_name}.filament_protocol"] = filament_protocol
-
-    mifare_classic = types.ModuleType(f"{package_name}.mifare_classic")
-    mifare_classic.M1_UID_CARD_TYPE = 0x88
-
-    def uid_only_struct(template, card_data):
-        info = dict(template)
-        info['CARD_UID'] = [int(byte) for byte in (card_data or [])]
-        return info
-
-    mifare_classic.uid_only_struct = uid_only_struct
-    sys.modules[f"{package_name}.mifare_classic"] = mifare_classic
-
-    return importlib.import_module(f"{package_name}.bespok3d_rfid")
-
-
-bespok3d_rfid = _install_stub_package()
+bespok3d_rfid = load_printer_extra("bespok3d_rfid")
 
 
 def _make_relay():

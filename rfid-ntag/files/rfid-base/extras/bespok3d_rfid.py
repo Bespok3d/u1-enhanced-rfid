@@ -11,6 +11,10 @@ _LOG_FILE = "/userdata/bespok3d/var/logs/bespok3d.log"
 CHANNEL_COUNT = 4
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 2
+SNAPMAKER_VENDOR = 'Snapmaker'
+GENERIC_VENDOR = 'Generic'
+SWITCH_OFF_WORDS = ('false', 'off', 'no', '0')
+SWITCH_ON_WORDS = ('true', 'on', 'yes', '1')
 
 
 def _setup_logger():
@@ -37,9 +41,26 @@ def _is_untagged_report(info_data):
     return info_data.get('OFFICIAL') is not True
 
 
+def _reads_as_on(setting):
+    """Read the switch without ever taking the printer down over it.
+
+    The setting arrives from the app through the installer, and Klipper halts the whole printer on
+    a config value its own getboolean cannot parse, so a value that never reached us, or reached us
+    unreadable, falls back to the on the plugin ships with.
+    """
+    if setting in SWITCH_OFF_WORDS:
+        return False
+    if setting not in SWITCH_ON_WORDS:
+        _log.warning("force_generic_vendor is %r, which reads as neither on nor off: using on",
+                     setting)
+    return True
+
+
 class Bespok3dRfid:
     def __init__(self, config):
         self.printer = config.get_printer()
+        self._force_generic_vendor = _reads_as_on(
+            config.get('force_generic_vendor', 'True').strip().lower())
         self._hw_readers = []
         self._payload_parsers = []
         self._spool_notify_cbs = []
@@ -66,14 +87,43 @@ class Bespok3dRfid:
             _log.warning("fm175xx_reader patch absent: HW tag pipeline inactive")
 
     def _register_reader_parser(self, reader):
+        parse = getattr(reader, 'parse', None)
+        parser = parse if callable(parse) else self._dispatch_parsers
+        self._register_protocol_parser(reader.card_type, parser)
+
+    def _register_protocol_parser(self, card_type, parser):
+        """The one door every parser goes through, so the vendor rule is applied exactly once."""
         detector = self.printer.lookup_object('filament_detect', None)
         if detector is None or not hasattr(detector, 'register_card_protocol_parser'):
             _log.warning("filament_detect patch absent: SW payload pipeline inactive")
             return
-        parse = getattr(reader, 'parse', None)
-        parser = parse if callable(parse) else self._dispatch_parsers
-        detector.register_card_protocol_parser(reader.card_type, parser)
-        _log.info("protocol parser registered card_type=0x%02X", reader.card_type)
+
+        def parse_then_name_the_spool(card_bytes):
+            error, info = parser(card_bytes)
+            if error != filament_protocol.FILAMENT_PROTO_OK or info is None:
+                return error, info
+            return error, self.apply_generic_vendor(info)
+
+        detector.register_card_protocol_parser(card_type, parse_then_name_the_spool)
+        _log.info("protocol parser registered card_type=0x%02X force_generic_vendor=%s",
+                  card_type, self._force_generic_vendor)
+
+    def apply_generic_vendor(self, info):
+        """Describe a non-Snapmaker spool in the words Snapmaker Orca ships filaments for.
+
+        Orca lists a loaded spool only when "<vendor> <type> <sub-type>" is exactly a filament it
+        already has, and it ships none for third-party brands, so a spool read perfectly off its tag
+        is dropped from Machine Filament with no error at all. Reporting Generic and no sub-type
+        lands on the Generic <type> filaments Orca does ship. Snapmaker spools keep their own name.
+        """
+        if not self._force_generic_vendor:
+            return info
+        if str(info.get('VENDOR', '')).lower() == SNAPMAKER_VENDOR.lower():
+            return info
+        generically_named = dict(info)
+        generically_named['VENDOR'] = GENERIC_VENDOR
+        generically_named['SUB_TYPE'] = ''
+        return generically_named
 
     def register_payload_parser(self, parser):
         self._payload_parsers.append(parser)
@@ -87,10 +137,8 @@ class Bespok3dRfid:
             _log.warning("filament_detect not found: all pipelines inactive")
             return
         detector.register_cb_2_update_filament_info(self._on_filament_update)
-        if hasattr(detector, 'register_card_protocol_parser'):
-            detector.register_card_protocol_parser(
-                mifare_classic.M1_UID_CARD_TYPE, self._uid_fallback_parser)
-            _log.info("ready: UID-only fallback parser registered")
+        self._register_protocol_parser(
+            mifare_classic.M1_UID_CARD_TYPE, self._uid_fallback_parser)
         _log.info("ready: registered filament update callback")
 
     def _uid_fallback_parser(self, card_data):

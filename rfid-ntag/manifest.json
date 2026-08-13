@@ -1,7 +1,7 @@
 {
   "name": "rfid-ntag",
   "title": "RFID Spool Reader",
-  "version": "0.1.9",
+  "version": "0.1.11",
   "license": "https://github.com/Bespok3d/u1-enhanced-rfid/blob/dev/rfid-ntag/doc/LICENSE",
   "author": "bespoked",
   "description": "USB RFID reader picks up OpenSpool-encoded NTAG215 cards. Writes the current spool's metadata to rfid_data.json on every card event so the rest of the stack just knows.",
@@ -13,7 +13,7 @@
   "homepage": "https://github.com/Bespok3d/u1-enhanced-rfid",
   "changelog": "doc/CHANGELOG.md",
   "published_at": "2025-09-02",
-  "updated_at": "2026-07-28",
+  "updated_at": "2026-08-13",
   "publisher": "PLACEHOLDER",
   "provides": [
     {
@@ -26,8 +26,27 @@
     "capabilities": [
       "rfid-spi"
     ],
-    "variables": []
+    "variables": [
+      {
+        "name": "RFID_FORCE_GENERIC_VENDOR",
+        "description": "True to report every non-Snapmaker spool to slicers as brand Generic with no sub-type, so Snapmaker Orca can match it. False to report the brand written on the tag.",
+        "required": true
+      }
+    ]
   },
+  "config": [
+    {
+      "key": "RFID_FORCE_GENERIC_VENDOR",
+      "label": "Show my spools in Snapmaker Orca",
+      "type": "toggle",
+      "onValue": "True",
+      "offValue": "False",
+      "default": "True",
+      "hint": "On: your loaded spools appear under Machine Filament in Snapmaker Orca, listed as Generic plus the material, because those are the only filament names Orca can match. The printer's own screen shows Generic too. Off: the brand written on the tag is used everywhere, and Orca lists nothing for anything but Snapmaker spools.",
+      "userEditable": true,
+      "scope": "global"
+    }
+  ],
   "permissions": [
     "klipper-extra",
     "klipper-config",
@@ -42,7 +61,9 @@
       },
       {
         "class": "klipper-config",
-        "src": "files/klipper/rfid.cfg"
+        "src": "files/klipper/rfid.cfg.tmpl",
+        "name": "rfid.cfg",
+        "render": true
       },
       {
         "class": "klipper-extra",
