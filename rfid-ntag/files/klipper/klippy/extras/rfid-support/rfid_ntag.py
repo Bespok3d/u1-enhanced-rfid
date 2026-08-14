@@ -58,7 +58,6 @@ def _build_filament_info(params):
 class RfidNtag:
     def __init__(self, config):
         self.printer = config.get_printer()
-        self._rfid_hub = None
         self._protocol_mappers = {}
         self.printer.register_event_handler("klippy:ready", self._handle_ready)
 
@@ -70,7 +69,6 @@ class RfidNtag:
         if hub is None:
             _log.warning("bespok3d_rfid not loaded: NTAG support inactive")
             return
-        self._rfid_hub = hub
         hub.register_hw_reader(NtagReader())
         hub.register_payload_parser(self)
         self.register_protocol_mapper(OpenSpoolMapper())
@@ -147,8 +145,7 @@ class RfidNtag:
                 raise web_request.error(f"unsupported fields: {', '.join(sorted(params.keys()))}")
             filament_info['OFFICIAL'] = has_params
             if self._should_apply(channel, has_params):
-                detector.set_filament_info(
-                    channel, self._rfid_hub.apply_generic_vendor(filament_info))
+                detector.set_filament_info(channel, filament_info)
             web_request.send({'state': 'success'})
         except Exception as err:
             _log.error("filament_detect/set: %s", str(err))

@@ -65,29 +65,26 @@ Any NFC app that writes an NDEF record with MIME type `application/json` also wo
 (up to 4, for multicolor), `weight` (grams), `diameter` (mm).
 
 `brand`, `type` and `subtype` are what the printer reports as the filament's name, and what
-Snapmaker Orca's **Sync Filament Information** then tries to match. Orca only ever matches against
-filaments it ships itself, so the name has to be one of those to land exactly: `Generic PLA` does,
-`Generic PLA Basic` does not (there is no such built-in), and `Elegoo PETG Basic` does not either,
-because Orca ships nothing under a third-party brand. That is Orca's own behaviour, not something the
-printer controls; the Spoolman Bridge doc has the full story under "Limits worth knowing about".
+Snapmaker Orca's **Sync Filament Information** looks up. It needs a filament preset named exactly
+that, capitals included, from the ones it ships and the ones you made yourself: `Generic PLA` finds
+a built-in, `ELEGOO PLA+ Rapid` finds a preset only if you made one with that name, because it ships
+none under a third-party brand. A tag with no `subtype` is reported as `Basic`, the way Snapmaker
+names its own base line, so an `eSun` + `PLA` tag reads as `eSun PLA Basic` and its preset needs the
+`Basic` too. That is Snapmaker Orca's own behaviour, not something the printer controls. Plain
+OrcaSlicer matches differently, and how it should behave is being worked out with one of its
+developers.
 
-## Show my spools in Snapmaker Orca
+## How a spool shows up in Snapmaker Orca
 
-A setting of this plugin, on by default. On, every spool whose tag says any brand other than
-Snapmaker is reported as `Generic` plus the material, with no sub-type, because those are the only
-filament names Orca can match: your loaded spools then appear under **Machine Filament** instead of
-the list coming up empty. The printer's own screen shows `Generic` too. Snapmaker's own spools are
-never renamed.
+The name written on the tag is reported everywhere: brand, material and variant, like
+`ELEGOO PLA+ Rapid`; a tag with no `subtype` reads as `Basic`. Snapmaker Orca lists the spool under
+**Machine Filament** when one of your filament presets is named exactly that, capitals included, so
+name your presets after your tags (or your tags after your presets) and your spools show under their
+real names. The name the printer filed is shown on the slot in Orca's **Device** tab: read it there
+and copy it into a preset name letter for letter.
 
-A spool that was already loaded when you installed or changed this setting keeps the name it was filed
-under until you take it out and put it back, because the printer only files a spool again when the
-slot changes.
-
-Off, the brand written on the tag is reported everywhere, which is what you want if you read the tags
-with something other than Orca. Orca will then list nothing for anything but Snapmaker spools.
-
-Change it from the plugin's settings in the Bespok3d app; the printer picks it up on the next Klipper
-restart.
+A spool that was already loaded keeps the name it was filed under until you take it out and put it
+back, because the printer only files a spool again when the slot changes.
 
 ## Troubleshooting
 

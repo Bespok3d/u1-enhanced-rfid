@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.12
+
+- The **Show my spools in Snapmaker Orca** setting is removed. Every spool is now always reported
+  under the name written on its tag: brand, material and variant, like `ELEGOO PLA+ Rapid`; a tag
+  with no `subtype` reads as `Basic` (`eSun PLA Basic`), the way Snapmaker names its own base line.
+  Nothing is renamed to `Generic` any more, on the printer's screen or anywhere else.
+- To see a spool in Snapmaker Orca, name a filament preset exactly what the printer reports,
+  capitals included. It matches against every preset, the ones it ships and the ones you made
+  yourself; no match means the spool is listed nowhere, with no error. The name the printer filed is
+  shown on the slot in Orca's **Device** tab, so you can copy it from there. (The 0.1.10 notes said
+  only built-in filaments matched; that was wrong.) Plain OrcaSlicer matches differently, and how it
+  should behave is being worked out with one of its developers.
+- A spool already loaded keeps the name it was filed under until you take it out and put it back.
+
 ## 0.1.11
 
 - Fix: 0.1.10 could stop the printer from starting. If the new setting did not reach the printer

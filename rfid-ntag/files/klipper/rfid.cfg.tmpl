@@ -1,9 +1,7 @@
-# Snapmaker Orca lists a loaded spool only when the printer's "<brand> <type> <sub-type>" is exactly
-# the name of a filament Orca itself ships, and it ships none for third-party brands, so a spool read
-# perfectly off its tag is dropped from Machine Filament with no error at all. On, every
-# non-Snapmaker spool is reported as Generic with no sub-type, which Orca does have. Off, the brand
-# written on the tag is reported as it is.
+# A spool is reported under the name written on its tag: brand, material and variant, like
+# ELEGOO PLA+ Rapid; a tag with no variant reads as Basic. Snapmaker Orca lists the spool under
+# Machine Filament when a filament preset, shipped or user-made, carries exactly that name,
+# capitals included.
 [bespok3d_rfid]
-force_generic_vendor: $RFID_FORCE_GENERIC_VENDOR
 
 [rfid_ntag]
