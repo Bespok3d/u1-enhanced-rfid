@@ -31,6 +31,19 @@ file other plugins read:
 Pairs naturally with the **Spoolman Bridge** plugin, which syncs the detected spool to
 your Spoolman server.
 
+## Your pressure advance stays put
+
+Stock, the printer replaces a lane's pressure advance with the value from its own material table
+every time it learns what filament that lane holds: a spool loaded, unloaded or swapped, a tag read,
+or a filament picked by hand, mid print included. This plugin stops that, so a lane keeps the number
+you set or the one your slicer sent. Only one lane was ever affected at a time, the one being told
+about; the others were never touched.
+
+Resetting on purpose still works: send `FLOW_RESET_K EXTRUDER=<lane>` and that lane goes back to the
+material table default.
+
+Firmware 1.3 and newer. On older firmware the rest of the plugin installs and this part is skipped.
+
 ## Programming tags (OpenSpool)
 
 1. Get NTAG215 or NTAG216 tags.

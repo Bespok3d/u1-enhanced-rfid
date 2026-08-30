@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.14
+
+- This plugin no longer changes Klipper's own program files. The three firmware changes it needed
+  now come from the shared base layer, which is installed alongside it. Your pressure advance still
+  stays where you set it and tags still read exactly as before.
+- Because of that, this plugin and the Force print preferences plugin no longer fight over the same
+  firmware file when both are installed.
+
+## 0.1.13
+
+- Your pressure advance now stays where you set it. Before, every time the printer was told what
+  filament a lane holds, it threw that lane's pressure advance away and put the value from its own
+  material table in place of it: loading a spool, unloading it, swapping it, reading a tag or
+  picking a filament by hand, and it happened mid print too. A lane you had tuned, or a value your
+  slicer sent, came out replaced with the machine's default. Now the number you set is left alone.
+- Sending `FLOW_RESET_K` yourself still works exactly as before, so you can put a lane back on the
+  material table default whenever you want.
+- This covers printers on firmware 1.3 and newer. On anything older, the plugin installs the rest of
+  itself and leaves the pressure advance behaviour as it was.
+
 ## 0.1.12
 
 - The **Show my spools in Snapmaker Orca** setting is removed. Every spool is now always reported

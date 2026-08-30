@@ -9,6 +9,9 @@ from . import filament_protocol, mifare_classic
 RFID_DATA_FILE = "/oem/printer_data/config/bespok3d/data/rfid_data.json"
 _LOG_FILE = "/userdata/bespok3d/var/logs/bespok3d.log"
 CHANNEL_COUNT = 4
+# The base layer keeps a lane's tuned pressure advance while an owner is registered, and this
+# is the name it holds this plugin's registration under.
+PRESSURE_ADVANCE_OWNER = "rfid-ntag"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 2
 
@@ -55,7 +58,7 @@ class Bespok3dRfid:
         fm_reader = self.printer.lookup_object('fm175xx_reader', None)
         claim = getattr(reader, 'claims', None)
         if fm_reader is None:
-            _log.warning("fm175xx_reader patch absent: HW tag pipeline inactive")
+            _log.warning("fm175xx_reader card hook absent: HW tag pipeline inactive")
         elif callable(claim) and hasattr(fm_reader, 'register_card_handler'):
             fm_reader.register_card_handler(reader.claims, reader.read_hw_tag)
             _log.info("HW claim reader registered card_type=0x%02X", reader.card_type)
@@ -63,7 +66,7 @@ class Bespok3dRfid:
             fm_reader.register_card_type_handler(reader.sak, reader.read_hw_tag)
             _log.info("HW reader registered SAK=0x%02X", reader.sak)
         else:
-            _log.warning("fm175xx_reader patch absent: HW tag pipeline inactive")
+            _log.warning("fm175xx_reader card hook absent: HW tag pipeline inactive")
 
     def _register_reader_parser(self, reader):
         parse = getattr(reader, 'parse', None)
@@ -73,7 +76,7 @@ class Bespok3dRfid:
     def _register_protocol_parser(self, card_type, parser):
         detector = self.printer.lookup_object('filament_detect', None)
         if detector is None or not hasattr(detector, 'register_card_protocol_parser'):
-            _log.warning("filament_detect patch absent: SW payload pipeline inactive")
+            _log.warning("filament_detect parser hook absent: SW payload pipeline inactive")
             return
         detector.register_card_protocol_parser(card_type, parser)
         _log.info("protocol parser registered card_type=0x%02X", card_type)
@@ -84,7 +87,18 @@ class Bespok3dRfid:
     def register_spool_notify(self, cb):
         self._spool_notify_cbs.append(cb)
 
+    def _hold_pressure_advance(self):
+        task_config = self.printer.lookup_object('print_task_config', None)
+        if task_config is None or not hasattr(task_config, 'suppress_pressure_advance_reset'):
+            _log.warning(
+                "print_task_config pressure advance hold absent: a lane loses its tuned "
+                "pressure advance on every filament change, as it does on stock firmware")
+            return
+        task_config.suppress_pressure_advance_reset(PRESSURE_ADVANCE_OWNER)
+        _log.info("pressure advance hold registered owner=%s", PRESSURE_ADVANCE_OWNER)
+
     def _handle_ready(self):
+        self._hold_pressure_advance()
         detector = self.printer.lookup_object('filament_detect', None)
         if detector is None:
             _log.warning("filament_detect not found: all pipelines inactive")
