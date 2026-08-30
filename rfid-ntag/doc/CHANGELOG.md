@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.15
+
+- NtagReader requested a fixed 132-page window (NTAG_USER_PAGE_COUNT) against every
+  card matching the NTAG21x-family SAK (0x04), which also covers the Mifare Ultralight
+  family. A card with real capacity short of that window (any plain Ultralight or Ultralight
+  C tag, 16 or 48 pages total) NAK'd on the first out-of-range chunk, and the whole read was
+  discarded as `FM175XX_CARD_READ_ERR` even though the in-range pages had already come back
+  clean.
+- Added `ChunkedType2PageReader`: reads `read_nfc_type2_pages` in native 4-page chunks
+  and stops at the first `NAK`, returning whatever pages were read successfully instead of
+  discarding them. NtagReader's own contract is unchanged, same card_type, data, `err` return
+  shape, callers don't need to change. No change to `fm175xx_reader.py`, this is composed
+  against `read_nfc_type2_pages` as-is. `NTAG_USER_PAGE_COUNT` itself is untouched, a genuine
+  NTAG215 tag still reads its full 132-page window in one pass same as before, only smaller
+  cards benefit.
+- Fixed a second, related bug in that same new reader before it shipped: `read_nfc_type2_pages`
+  always performs its physical reads in full 4-page groups no matter what page count it is
+  asked for, a request for 1 to 4 pages still returns a full 4-page group's worth of bytes.
+  `ChunkedType2PageReader`'s first draft assumed a smaller trailing request returned
+  proportionally fewer bytes, which would have silently misaligned the page accounting on any
+  request whose total page count was not a multiple of 4. This never affected a real read
+  (`NTAG_USER_PAGE_COUNT` is a multiple of 4), but it was a real latent bug in a reader meant
+  to be reused by other tag families. The reader now always asks for a full chunk and trims
+  the result to the caller's requested page count afterward, so the trimming happens on this
+  side rather than relying on the driver to honor a partial count.
+
 ## 0.1.14
 
 - This plugin no longer changes Klipper's own program files. The three firmware changes it needed
