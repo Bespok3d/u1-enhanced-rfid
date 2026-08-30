@@ -35,12 +35,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: Bespok3d/b3-builder@f09f2529dafd7edf78a5256f0f66aa1d5324d4ea  # main @ 2026-08-30
+      - uses: Bespok3d/b3-builder@c0180cb4f5cb1080bae1e425696a43539eaac906  # main @ 2026-08-30
         with:
           unit: repo
           bake: 'false'
           publish: 'false'
           atom-repo: ${{ github.repository }}
+          # This repo requires a service a plugin in ANOTHER repo provides, so the build reads the org
+          # index to learn which plugin id that is. Without it the requirement has no id to resolve to
+          # and the build stops rather than publishing a name no registry can serve.
+          provider-indexes: https://raw.githubusercontent.com/Bespok3d/main-index/main/index.json
 
       - uses: actions/upload-artifact@v4
         with:
