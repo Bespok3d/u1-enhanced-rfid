@@ -31,6 +31,13 @@ FILAMENT_PROTO_OK = 0
 FILAMENT_PROTO_ERR = 1
 M1_UID_CARD_TYPE = 0x88
 
+# NOTE: values below this line were added for ntag_reader test coverage. Both are confirmed
+# against the real base file (Snapmaker/u1-klipper, klippy/extras/fm175xx_reader.py):
+# FM175XX_OK = 0 and FM175XX_CARD_READ_ERR = -29, straight from that file's own "Error code"
+# block, not assumed.
+FM175XX_OK = 0
+FM175XX_CARD_READ_ERR = -29
+
 
 def _uid_only_struct(template, card_data):
     info = dict(template)
@@ -50,6 +57,8 @@ def _firmware_stub_modules():
     mifare_classic.uid_only_struct = _uid_only_struct
 
     fm175xx_reader = types.ModuleType(f"{EXTRAS_STUB}.fm175xx_reader")
+    fm175xx_reader.FM175XX_OK = FM175XX_OK
+    fm175xx_reader.FM175XX_CARD_READ_ERR = FM175XX_CARD_READ_ERR
 
     return [filament_protocol, mifare_classic, fm175xx_reader]
 
