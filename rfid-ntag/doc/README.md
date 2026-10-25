@@ -108,3 +108,8 @@ back, because the printer only files a spool again when the slot changes.
   correct OpenSpool data.
 - **OpenPrintTag tags do nothing:** expected. They use ISO15693, which the U1 cannot read.
   Use NTAG tags with OpenSpool instead.
+- **An untagged spool shows up as the spool next to it:** a reader with no tag of its own in
+  range can pick up the neighbouring spool's tag (Bambu Lab spools carry theirs on the flanges).
+  A tag another lane already holds is ignored and that lane is left untagged, so pick its
+  filament on the screen. If the wrong lane got the tag first (the untagged lane was loaded
+  before the tagged one), unload both and load the tagged spool first.

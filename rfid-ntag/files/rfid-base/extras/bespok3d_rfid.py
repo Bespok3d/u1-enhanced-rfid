@@ -136,6 +136,8 @@ class Bespok3dRfid:
                 "filament update ch=%d suppressed: no-identity report would overwrite "
                 "known-good state (mirrors Snapmaker's own official-vendor guard)", channel)
             return
+        if not is_clear and self._is_read_through(channel, info_data):
+            return
         self._filament_state[channel] = None if is_clear else info
         self._write_rfid_data()
         notify_info = None if is_clear else info
@@ -152,6 +154,43 @@ class Bespok3dRfid:
         if _is_untagged_report(current_state):
             return False
         return _is_untagged_report(info_data)
+
+    def _tag_owner_channel(self, channel, card_uid):
+        """The other channel already holding this tag, if any. One tag sits on one spool, so the
+        same hardware UID turning up on a second channel is that channel's reader picking up the
+        tag of the spool next to it, which happens when its own spool carries no tag."""
+        owners = (
+            owner_channel for owner_channel, owner_state in enumerate(self._filament_state)
+            if owner_channel != channel and owner_state
+            and owner_state.get('CARD_UID') == card_uid
+        )
+        return next(owners, None)
+
+    def _is_read_through(self, channel, info_data):
+        card_uid = info_data.get('CARD_UID')
+        if not card_uid:
+            return False
+        owner_channel = self._tag_owner_channel(channel, card_uid)
+        if owner_channel is None:
+            return False
+        _log.warning(
+            "filament update ch=%d dropped: tag uid=%s already belongs to ch=%d, so this reader "
+            "picked up the neighbouring spool's tag", channel, card_uid, owner_channel)
+        self._clear_printer_channel(channel)
+        return True
+
+    def _clear_printer_channel(self, channel):
+        """The printer took the read-through tag too (filament_detect notifies every listener at
+        once), so clear the channel there as well, the way removing the spool does."""
+        detector = self.printer.lookup_object('filament_detect', None)
+        set_filament_info = getattr(detector, 'set_filament_info', None)
+        if not callable(set_filament_info):
+            _log.warning(
+                "filament_detect set_filament_info door absent: ch=%d keeps the neighbouring "
+                "spool's tag on the printer", channel)
+            return
+        set_filament_info(
+            channel, copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT), is_clear=True)
 
     def _write_rfid_data(self):
         empty = filament_protocol.FILAMENT_INFO_STRUCT

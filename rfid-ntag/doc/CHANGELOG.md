@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.16
+
+- A lane whose own spool carries no tag could pick up the tag of the spool next to it, so two
+  lanes reported the same spool: an untagged spool in lane 3 next to a tagged Bambu Lab spool in
+  lane 4 showed up as that Bambu spool on both lanes, on the printer screen, in
+  `rfid_data.json` and in Snapmaker Orca. One tag sits on one spool, so a tag whose hardware UID
+  another lane already holds is now dropped: that lane is left untagged, cleared on the printer
+  the way removing its spool clears it, and the drop is logged with both lanes. The lane that
+  read the tag first keeps it. A spool moved to another lane is read there as soon as its old
+  lane has been cleared, which unloading does.
+
 ## 0.1.15
 
 - NtagReader requested a fixed 132-page window (NTAG_USER_PAGE_COUNT) against every
