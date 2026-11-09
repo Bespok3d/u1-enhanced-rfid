@@ -2,33 +2,27 @@
 
 ## 0.1.17
 
-- A factory tag that failed to answer after a restart wiped its lane: the spool memory lived
-  only in RAM, so the no-identity guard had nothing to protect and the failed read overwrote
-  `rfid_data.json` with an empty lane. At startup the plugin now reloads the identified spool
-  of each lane from `rfid_data.json`.
+- A tagged spool whose tag did not answer right after a restart lost its lane. The plugin now
+  remembers the spool of each lane across a restart.
 - A spool that never left the printer lost its tag info and its Spoolman link after a power
-  cycle, while the firmware itself kept it. The filament sensors are not settled that early at
-  startup, so a loaded lane can read empty. Startup now forgets a lane only when the firmware's
-  own saved filament for it is gone or belongs to another vendor.
-- A read the guard suppresses now re-sends the remembered spool to the listeners instead of
-  staying silent, so Spoolman gets the spool back after a restart or after "clear all spools"
-  followed by a detect.
-- A clear is now ignored while the filament sensor reports the lane loaded; the remembered spool
-  is re-sent instead. Only a lane the sensor reports empty is forgotten.
-- A lane that remembers its own spool and picks up the tag of the spool next to it now gets its
-  own spool back on the printer. Before, the printer cleared it while the plugin still held it,
-  and the next startup forgot it.
+  cycle. Right after power-on the filament sensors can report a loaded lane as empty. The plugin
+  now forgets a lane at startup only when the printer no longer has that spool saved, or has a
+  spool of another brand saved there.
+- When the plugin ignores a tag read to protect the spool it remembers, it now sends that spool
+  again. Spoolman gets the spool back after a restart, or after "clear all spools" followed by a
+  detect.
+- Clearing a lane is now ignored while its filament sensor says the lane is loaded, and the
+  remembered spool stays. A lane is forgotten only when the sensor says it is empty.
+- A lane that remembers its spool and picks up the tag of the spool next to it now keeps its own
+  spool on the printer. Before, the printer showed the lane empty and the next restart forgot the
+  spool.
 
 ## 0.1.16
 
-- A lane whose own spool carries no tag could pick up the tag of the spool next to it, so two
-  lanes reported the same spool: an untagged spool in lane 3 next to a tagged Bambu Lab spool in
-  lane 4 showed up as that Bambu spool on both lanes, on the printer screen, in
-  `rfid_data.json` and in Snapmaker Orca. One tag sits on one spool, so a tag whose hardware UID
-  another lane already holds is now dropped: that lane is left untagged, cleared on the printer
-  the way removing its spool clears it, and the drop is logged with both lanes. The lane that
-  read the tag first keeps it. A spool moved to another lane is read there as soon as its old
-  lane has been cleared, which unloading does.
+- A lane whose spool has no tag could pick up the tag of the spool next to it, so two lanes showed
+  the same spool on the printer screen and in Snapmaker Orca. A tag now belongs to one lane only:
+  the lane that read it first keeps it, and the other lane shows as untagged. A spool you move to
+  another lane is read there once its old lane is unloaded. Thanks to olavgm.
 
 ## 0.1.15
 
