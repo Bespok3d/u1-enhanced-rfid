@@ -345,8 +345,9 @@ def test_different_tags_on_neighbouring_channels_are_both_kept():
 
 
 def _deliver_printer_sets(relay, filament_detect):
-    """filament_detect hands every set back to its listeners on a later reactor turn."""
-    for channel, info, is_clear in filament_detect.set_calls:
+    """filament_detect hands every set back to its listeners on a later reactor turn. One turn
+    only: a set the relay makes in answer shows up in set_calls instead of looping the test."""
+    for channel, info, is_clear in list(filament_detect.set_calls):
         relay._on_filament_update(channel, info, is_clear)
 
 
@@ -375,3 +376,24 @@ def test_read_through_on_a_lane_remembered_across_a_restart_keeps_its_spool_on_t
     saved_lanes = json.loads(rfid_data_file.read_text())
     assert saved_lanes[str(NEIGHBOUR_CHANNEL)] == remembered_spool
     assert notified[-1] == (NEIGHBOUR_CHANNEL, remembered_spool, False)
+
+
+# Older builds kept a read-through tag as the lane's own spool, so a lane can come back from a
+# restart holding its neighbour's UID. Its spool goes back on the printer once, not on every echo.
+def test_a_lane_restored_with_its_neighbours_tag_is_put_back_on_the_printer_once(
+        tmp_path, monkeypatch):
+    restored_read_through = _bambu_report()
+    firmware_vendors = ["Bambu Lab"] * bespok3d_rfid.CHANNEL_COUNT
+    relay, _ = _booted_relay(
+        tmp_path, monkeypatch,
+        {str(NEIGHBOUR_CHANNEL): restored_read_through, str(TAGGED_CHANNEL): _bambu_report()},
+        firmware_vendors)
+    filament_detect = FilamentDetectDoor()
+    relay.printer.objects['filament_detect'] = filament_detect
+    rewritten_neighbouring_tag = {**_bambu_report(), 'SPOOL_ID': 5}
+
+    relay._on_filament_update(NEIGHBOUR_CHANNEL, rewritten_neighbouring_tag, is_clear=False)
+    _deliver_printer_sets(relay, filament_detect)
+
+    assert filament_detect.set_calls == [(NEIGHBOUR_CHANNEL, restored_read_through, False)]
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] == restored_read_through

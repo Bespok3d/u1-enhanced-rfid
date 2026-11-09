@@ -247,9 +247,12 @@ class Bespok3dRfid:
         )
         return next(owners, None)
 
+    # The lane's own spool coming back, the echo of _reset_printer_channel included, is never a
+    # read-through. A lane restored from an older build holding its neighbour's UID would otherwise
+    # be reset again by its own echo, forever.
     def _is_read_through(self, channel, info_data):
         card_uid = info_data.get('CARD_UID')
-        if not card_uid:
+        if not card_uid or info_data == self._filament_state[channel]:
             return False
         owner_channel = self._tag_owner_channel(channel, card_uid)
         if owner_channel is None:
@@ -264,8 +267,8 @@ class Bespok3dRfid:
         """The printer took the read-through tag too (filament_detect notifies every listener at
         once), so put the lane back there as this relay holds it: its remembered spool, or
         cleared the way removing the spool clears it. A clear of a lane that remembers a spool
-        would come back here and be ignored by the loaded-lane clear guard, leaving the printer
-        empty while this relay still holds the spool, and the next boot would forget it."""
+        would come back to this relay and be ignored by the loaded-lane clear guard, leaving the
+        printer empty while this relay still holds the spool, and the next boot would forget it."""
         detector = self.printer.lookup_object('filament_detect', None)
         set_filament_info = getattr(detector, 'set_filament_info', None)
         if not callable(set_filament_info):
