@@ -52,10 +52,22 @@ class FakeFilamentDetect:
         self.protocol_parsers[card_type] = parser
 
 
+class FakeReactor:
+    def __init__(self):
+        self.deferred_callbacks = []
+
+    def register_callback(self, callback):
+        self.deferred_callbacks.append(callback)
+
+
 class FakePrinter:
     def __init__(self, klipper_objects):
         self._klipper_objects = klipper_objects
         self.ready_handlers = []
+        self.reactor = FakeReactor()
+
+    def get_reactor(self):
+        return self.reactor
 
     def lookup_object(self, name, default=None):
         return self._klipper_objects.get(name, default)
