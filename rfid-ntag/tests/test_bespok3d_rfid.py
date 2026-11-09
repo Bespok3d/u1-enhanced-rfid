@@ -342,3 +342,36 @@ def test_different_tags_on_neighbouring_channels_are_both_kept():
 
     assert relay._filament_state[NEIGHBOUR_CHANNEL] == _bambu_report(other_tag_uid)
     assert filament_detect.set_calls == []
+
+
+def _deliver_printer_sets(relay, filament_detect):
+    """filament_detect hands every set back to its listeners on a later reactor turn."""
+    for channel, info, is_clear in filament_detect.set_calls:
+        relay._on_filament_update(channel, info, is_clear)
+
+
+def test_read_through_on_a_lane_remembered_across_a_restart_keeps_its_spool_on_the_printer(
+        tmp_path, monkeypatch):
+    remembered_spool = _tagged_report("Anycubic")
+    firmware_lane_vendors = {NEIGHBOUR_CHANNEL: "Anycubic", TAGGED_CHANNEL: "Bambu Lab"}
+    firmware_vendors = [firmware_lane_vendors.get(channel, 'NONE')
+                        for channel in range(bespok3d_rfid.CHANNEL_COUNT)]
+    relay, rfid_data_file = _booted_relay(
+        tmp_path, monkeypatch,
+        {str(NEIGHBOUR_CHANNEL): remembered_spool, str(TAGGED_CHANNEL): _bambu_report()},
+        firmware_vendors)
+    filament_detect = FilamentDetectDoor()
+    relay.printer.objects['filament_detect'] = filament_detect
+    notified = []
+    relay.register_spool_notify(
+        lambda channel, info, is_clear: notified.append((channel, info, is_clear))
+    )
+
+    relay._on_filament_update(NEIGHBOUR_CHANNEL, _bambu_report(), is_clear=False)
+    _deliver_printer_sets(relay, filament_detect)
+
+    assert filament_detect.set_calls == [(NEIGHBOUR_CHANNEL, remembered_spool, False)]
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] == remembered_spool
+    saved_lanes = json.loads(rfid_data_file.read_text())
+    assert saved_lanes[str(NEIGHBOUR_CHANNEL)] == remembered_spool
+    assert notified[-1] == (NEIGHBOUR_CHANNEL, remembered_spool, False)

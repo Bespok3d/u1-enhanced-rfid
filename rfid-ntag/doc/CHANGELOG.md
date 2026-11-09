@@ -15,6 +15,9 @@
   followed by a detect.
 - A clear is now ignored while the filament sensor reports the lane loaded; the remembered spool
   is re-sent instead. Only a lane the sensor reports empty is forgotten.
+- A lane that remembers its own spool and picks up the tag of the spool next to it now gets its
+  own spool back on the printer. Before, the printer cleared it while the plugin still held it,
+  and the next startup forgot it.
 
 ## 0.1.16
 

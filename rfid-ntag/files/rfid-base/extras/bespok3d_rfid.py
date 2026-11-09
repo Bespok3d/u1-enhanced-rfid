@@ -257,12 +257,15 @@ class Bespok3dRfid:
         _log.warning(
             "filament update ch=%d dropped: tag uid=%s already belongs to ch=%d, so this reader "
             "picked up the neighbouring spool's tag", channel, card_uid, owner_channel)
-        self._clear_printer_channel(channel)
+        self._reset_printer_channel(channel)
         return True
 
-    def _clear_printer_channel(self, channel):
+    def _reset_printer_channel(self, channel):
         """The printer took the read-through tag too (filament_detect notifies every listener at
-        once), so clear the channel there as well, the way removing the spool does."""
+        once), so put the lane back there as this relay holds it: its remembered spool, or
+        cleared the way removing the spool clears it. A clear of a lane that remembers a spool
+        would come back here and be ignored by the loaded-lane clear guard, leaving the printer
+        empty while this relay still holds the spool, and the next boot would forget it."""
         detector = self.printer.lookup_object('filament_detect', None)
         set_filament_info = getattr(detector, 'set_filament_info', None)
         if not callable(set_filament_info):
@@ -270,8 +273,12 @@ class Bespok3dRfid:
                 "filament_detect set_filament_info door absent: ch=%d keeps the neighbouring "
                 "spool's tag on the printer", channel)
             return
-        set_filament_info(
-            channel, copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT), is_clear=True)
+        remembered_spool = self._filament_state[channel]
+        if remembered_spool is None:
+            set_filament_info(
+                channel, copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT), is_clear=True)
+            return
+        set_filament_info(channel, copy.deepcopy(remembered_spool), is_clear=False)
 
     # The firmware sends a clear on every sensor blip, a reboot included, while the spool never
     # left the holder. Only a lane the sensor reports empty has really been unloaded.
