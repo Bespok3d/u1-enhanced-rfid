@@ -91,3 +91,102 @@ def test_brandless_openspool_swap_after_tagged_load_is_not_suppressed():
 
     assert relay._filament_state[CHANNEL] == swap_report
     assert notified[-1] == (CHANNEL, swap_report, False)
+
+
+# A lane whose own spool has no tag can pick up the tag of the spool next to it: the same hardware
+# UID then reaches two channels. The tag belongs to the channel that already holds it.
+TAGGED_CHANNEL = 3
+NEIGHBOUR_CHANNEL = 2
+NEIGHBOURING_TAG_UID = [0x04, 0xA1, 0xB2, 0xC3]
+
+
+class FilamentDetectDoor:
+    """Stands in for u1-base's filament_detect, recording what the relay sets on each channel."""
+
+    def __init__(self):
+        self.set_calls = []
+
+    def set_filament_info(self, channel, info, is_clear=False):
+        self.set_calls.append((channel, info, is_clear))
+        return True
+
+
+class PrinterWithFilamentDetect:
+    def __init__(self, filament_detect):
+        self.filament_detect = filament_detect
+
+    def lookup_object(self, name, default=None):
+        return self.filament_detect if name == 'filament_detect' else default
+
+
+def _make_relay_on_printer():
+    relay = _make_relay()
+    filament_detect = FilamentDetectDoor()
+    relay.printer = PrinterWithFilamentDetect(filament_detect)
+    return relay, filament_detect
+
+
+def _bambu_report(card_uid=None):
+    return {'VENDOR': 'Bambu Lab', 'MAIN_TYPE': 'PLA', 'OFFICIAL': True, 'SPOOL_ID': 0,
+            'CARD_UID': card_uid or NEIGHBOURING_TAG_UID}
+
+
+def test_tag_already_held_by_another_channel_is_dropped_and_cleared_on_the_printer():
+    relay, filament_detect = _make_relay_on_printer()
+    notified = []
+    relay.register_spool_notify(
+        lambda channel, info, is_clear: notified.append((channel, info, is_clear))
+    )
+
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+    relay._on_filament_update(NEIGHBOUR_CHANNEL, _bambu_report(), is_clear=False)
+
+    assert relay._filament_state[TAGGED_CHANNEL] == _bambu_report()
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] is None
+    assert notified == [(TAGGED_CHANNEL, _bambu_report(), False)]
+    assert filament_detect.set_calls == [
+        (NEIGHBOUR_CHANNEL, bespok3d_rfid.filament_protocol.FILAMENT_INFO_STRUCT, True)
+    ]
+
+
+def test_uid_only_report_of_a_tag_another_channel_holds_is_dropped():
+    relay, filament_detect = _make_relay_on_printer()
+
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+    relay._on_filament_update(
+        NEIGHBOUR_CHANNEL, _uid_only_report(NEIGHBOURING_TAG_UID), is_clear=False)
+
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] is None
+    assert [channel for channel, _, _ in filament_detect.set_calls] == [NEIGHBOUR_CHANNEL]
+
+
+def test_rereading_the_same_channel_keeps_its_own_tag():
+    relay, filament_detect = _make_relay_on_printer()
+
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+
+    assert relay._filament_state[TAGGED_CHANNEL] == _bambu_report()
+    assert filament_detect.set_calls == []
+
+
+def test_spool_moved_after_its_old_channel_was_cleared_is_read_on_the_new_one():
+    relay, filament_detect = _make_relay_on_printer()
+
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+    relay._on_filament_update(TAGGED_CHANNEL, None, is_clear=True)
+    relay._on_filament_update(NEIGHBOUR_CHANNEL, _bambu_report(), is_clear=False)
+
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] == _bambu_report()
+    assert filament_detect.set_calls == []
+
+
+def test_different_tags_on_neighbouring_channels_are_both_kept():
+    relay, filament_detect = _make_relay_on_printer()
+    other_tag_uid = [0x04, 0xD4, 0xE5, 0xF6]
+
+    relay._on_filament_update(TAGGED_CHANNEL, _bambu_report(), is_clear=False)
+    relay._on_filament_update(NEIGHBOUR_CHANNEL, _bambu_report(other_tag_uid), is_clear=False)
+
+    assert relay._filament_state[NEIGHBOUR_CHANNEL] == _bambu_report(other_tag_uid)
+    assert filament_detect.set_calls == []
