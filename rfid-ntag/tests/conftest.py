@@ -26,6 +26,7 @@ FILAMENT_INFO_STRUCT = {
     'OFFICIAL': False,
     'CARD_UID': 0,
     'SPOOL_ID': 0,
+    'SKU': 0,
 }
 FILAMENT_PROTO_OK = 0
 FILAMENT_PROTO_ERR = 1

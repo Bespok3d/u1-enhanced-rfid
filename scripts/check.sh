@@ -35,11 +35,11 @@ b3d_python_tools
 
 run_check "pytest"  pytest_in_dir "$PLUGIN_DIR" tests
 run_check "ruff"    ruff_in_dir "$PLUGIN_DIR" files tests
-# The reader driver talks to Klipper objects mypy cannot resolve; the pure decode path carries the
-# type coverage.
+# The reader driver talks to Klipper objects mypy cannot resolve; the pure decode path and the
+# saved lane store carry the type coverage.
 run_check "mypy"    mypy_in_dir "$PLUGIN_DIR" \
     "$RFID_SUPPORT/chips/ndef_parser.py" "$RFID_SUPPORT/chips/mifare_classic.py" \
-    "$RFID_SUPPORT/payload_mapper.py"
+    "$RFID_SUPPORT/payload_mapper.py" "files/rfid-base/extras/bespok3d_rfid_saved_lanes.py"
 
 release_trigger_check "$REPO_ROOT"
 manifest_origin_check "$REPO_ROOT"

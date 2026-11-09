@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.18
+
+- A lane could keep the spool of the lane next to it after a restart, saved there by an older
+  version, and then refuse that spool on its real lane. The first restart after this update
+  forgets every lane's saved spool, because older versions could not tell which lane really held
+  a tag. A spool comes back the next time its tag is read. If the printer still shows on a lane a
+  spool that an older version saved on two lanes, that lane is emptied on the printer too, until
+  its tag is read again. When the printer is not ready to check this at the first restart, it is
+  checked at the next one.
+- A power cut while the plugin saved the lanes could leave a broken file and lose every lane's
+  spool. A save now replaces the file in one step, so a cut save is never read back half done:
+  the spools saved before it are kept. Only a cut at the very end of a save still forgets them,
+  and each spool comes back the next time its tag is read.
+
 ## 0.1.17
 
 - A tagged spool whose tag did not answer right after a restart lost its lane. The plugin now

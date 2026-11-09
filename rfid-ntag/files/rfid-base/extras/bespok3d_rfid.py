@@ -1,12 +1,12 @@
 import copy
-import json
 import logging
 import logging.handlers
 import os
+from typing import Any
 
+from . import bespok3d_rfid_saved_lanes as saved_lanes_store
 from . import filament_protocol, mifare_classic
 
-RFID_DATA_FILE = "/oem/printer_data/config/bespok3d/data/rfid_data.json"
 _LOG_FILE = "/userdata/bespok3d/var/logs/bespok3d.log"
 CHANNEL_COUNT = 4
 # The base layer keeps a lane's tuned pressure advance while an owner is registered, and this
@@ -14,6 +14,17 @@ CHANNEL_COUNT = 4
 PRESSURE_ADVANCE_OWNER = "rfid-ntag"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 2
+# The firmware copies these fields of every read it takes into its own record of the lane, the
+# filament lists print_task_config reports, keyed here by the read's own field name.
+FIRMWARE_RECORD_FIELDS = {
+    'VENDOR': 'filament_vendor',
+    'MAIN_TYPE': 'filament_type',
+    'SUB_TYPE': 'filament_sub_type',
+    'ARGB_COLOR': 'filament_color',
+    'SKU': 'filament_sku',
+}
+SavedLanes = saved_lanes_store.SavedLanes
+FirmwareRecord = dict[str, Any]
 
 
 def _setup_logger():
@@ -40,21 +51,6 @@ def _is_untagged_report(info_data):
     return info_data.get('OFFICIAL') is not True
 
 
-def _read_rfid_data():
-    try:
-        with open(RFID_DATA_FILE) as file_in:
-            saved_lanes = json.load(file_in)
-    except FileNotFoundError:
-        return {}
-    except Exception as read_err:
-        _log.error("rfid_data.json read failed: %s", read_err)
-        return {}
-    if not isinstance(saved_lanes, dict):
-        _log.error("rfid_data.json holds no lane map: starting with no remembered spool")
-        return {}
-    return saved_lanes
-
-
 def _remembered_state(saved_lanes, channel):
     saved_info = saved_lanes.get(str(channel))
     if not isinstance(saved_info, dict) or _is_untagged_report(saved_info):
@@ -62,10 +58,62 @@ def _remembered_state(saved_lanes, channel):
     return saved_info
 
 
+def _saved_tag_uid(saved_lanes: SavedLanes, channel: int) -> Any:
+    return (_remembered_state(saved_lanes, channel) or {}).get('CARD_UID')
+
+
+# One tag sits on one spool, so two lanes saved with the same tag prove a reader picked up its
+# neighbour's spool, without telling which of the two lanes is the wrong one.
+def _channels_sharing_a_tag(saved_lanes: SavedLanes) -> list[int]:
+    tag_uids = [_saved_tag_uid(saved_lanes, channel) for channel in range(CHANNEL_COUNT)]
+    return [channel for channel, tag_uid in enumerate(tag_uids)
+            if tag_uid and tag_uids.count(tag_uid) > 1]
+
+
 def _kept_by_firmware(remembered_state, firmware_vendor):
     if remembered_state is None or firmware_vendor is None:
         return remembered_state
     return remembered_state if remembered_state.get('VENDOR') == firmware_vendor else None
+
+
+def _is_lane_list(status_value: Any) -> bool:
+    return isinstance(status_value, list) and len(status_value) >= CHANNEL_COUNT
+
+
+# With no firmware record every lane is kept, so nothing is forgotten on a guess.
+def _lane_vendors_in(task_status: dict[str, Any]) -> list[str | None]:
+    filament_vendor = task_status.get('filament_vendor')
+    if not _is_lane_list(filament_vendor):
+        _log.warning("firmware filament record unknown at boot: every remembered lane is kept")
+        return [None] * CHANNEL_COUNT
+    return filament_vendor[:CHANNEL_COUNT]
+
+
+def _lane_records_in(task_status: dict[str, Any]) -> list[FirmwareRecord | None]:
+    lane_lists = {field: task_status.get(status_key)
+                  for field, status_key in FIRMWARE_RECORD_FIELDS.items()}
+    if not all(_is_lane_list(lane_list) for lane_list in lane_lists.values()):
+        return [None] * CHANNEL_COUNT
+    return [{field: lane_list[channel] for field, lane_list in lane_lists.items()}
+            for channel in range(CHANNEL_COUNT)]
+
+
+# Unlike a restore, which keeps every lane when there is no firmware record, a clear needs the
+# record to show that very spool: nothing is cleared on a guess.
+def _shown_by_printer(
+        saved_lanes: SavedLanes, channel: int, firmware_record: FirmwareRecord | None) -> bool:
+    remembered_state = _remembered_state(saved_lanes, channel)
+    if remembered_state is None or firmware_record is None:
+        return False
+    return all(remembered_state.get(field) == value for field, value in firmware_record.items())
+
+
+# A lane saved with a shared tag stays unproven even when the other lane has moved on since: the
+# printer may still show the neighbour's spool there.
+def _shared_tag_channels_still_shown(
+        saved_lanes: SavedLanes, firmware_records: list[FirmwareRecord | None]) -> list[int]:
+    return [channel for channel in _channels_sharing_a_tag(saved_lanes)
+            if _shown_by_printer(saved_lanes, channel, firmware_records[channel])]
 
 
 class Bespok3dRfid:
@@ -75,7 +123,21 @@ class Bespok3dRfid:
         self._payload_parsers = []
         self._spool_notify_cbs = []
         self._filament_state = [None] * CHANNEL_COUNT
+        self._proven_lanes = self._take_saved_lanes()
+        self._unproven_lanes = saved_lanes_store.read_unproven_lanes()
         self.printer.register_event_handler("klippy:ready", self._handle_ready)
+
+    # Other plugins read rfid_data.json in their own klippy:ready handler, which can run before this
+    # one, so a file this version cannot trust is replaced while the config loads, before any reads.
+    # Only lanes saved with one tag can still be wrong on the printer, so only those are kept aside.
+    def _take_saved_lanes(self) -> SavedLanes:
+        saved_lanes, is_proven = saved_lanes_store.read_saved_lanes()
+        if is_proven:
+            return saved_lanes
+        if _channels_sharing_a_tag(saved_lanes):
+            saved_lanes_store.set_aside_unproven_lanes()
+        self._write_rfid_data()
+        return {}
 
     def register_hw_reader(self, reader):
         self._hw_readers.append(reader)
@@ -141,40 +203,57 @@ class Bespok3dRfid:
     # identified spool per lane outlives a restart. A lane the firmware itself no longer
     # remembers was emptied while powered off and forgets it; a different tag answering
     # replaces it.
-    def _restore_remembered_lanes(self):
-        saved_lanes = _read_rfid_data()
-        self._filament_state = [_remembered_state(saved_lanes, channel)
+    def _restore_remembered_lanes(self) -> None:
+        self._filament_state = [_remembered_state(self._proven_lanes, channel)
                                 for channel in range(CHANNEL_COUNT)]
         self.printer.get_reactor().register_callback(self._forget_lanes_the_firmware_forgot)
 
     # The filament sensors are not settled this early at boot and report a loaded lane empty,
     # so presence cannot decide. The firmware's own saved filament per lane survives the same
     # restart and is the truth for what still sits on the holder.
-    def _forget_lanes_the_firmware_forgot(self, eventtime):
-        firmware_vendors = self._firmware_lane_vendors(eventtime)
+    def _forget_lanes_the_firmware_forgot(self, eventtime: float) -> None:
+        task_status = self._task_status(eventtime)
+        firmware_vendors = _lane_vendors_in(task_status)
         self._filament_state = [_kept_by_firmware(state, firmware_vendors[channel])
                                 for channel, state in enumerate(self._filament_state)]
         _log.info("boot restore: firmware=%s vendors=%s", firmware_vendors,
                   [(state or {}).get('VENDOR', 'NONE') for state in self._filament_state])
         self._write_rfid_data()
+        self._reset_lanes_shown_with_a_shared_tag(_lane_records_in(task_status))
 
-    # With no firmware record every lane is kept, so nothing is forgotten on a guess.
-    def _firmware_lane_vendors(self, eventtime):
+    # An older version let the printer take the neighbour's tag too, so it can still show one spool
+    # on two lanes. Every such lane is cleared there; the right one comes back at its next read.
+    # The older lanes are only forgotten once the printer has cleared each lane they put in doubt.
+    def _reset_lanes_shown_with_a_shared_tag(
+            self, firmware_records: list[FirmwareRecord | None]) -> None:
+        if not self._unproven_lanes:
+            return
+        if None in firmware_records:
+            _log.warning("firmware filament record unknown at boot: lanes an older version saved "
+                         "are checked at the next restart")
+            return
+        doubtful_channels = _shared_tag_channels_still_shown(self._unproven_lanes, firmware_records)
+        reset_results = [self._reset_shared_tag_channel(channel) for channel in doubtful_channels]
+        if not all(reset_results):
+            _log.warning("lanes an older version saved are checked again at the next restart")
+            return
+        saved_lanes_store.forget_unproven_lanes()
+        self._unproven_lanes = {}
+
+    def _reset_shared_tag_channel(self, channel: int) -> bool:
+        _log.warning("ch=%d still shows a tag an older version also saved on another lane: "
+                     "cleared on the printer until its tag is read again", channel)
+        return self._reset_printer_channel(channel)
+
+    def _task_status(self, eventtime: float) -> dict[str, Any]:
         task_config = self.printer.lookup_object('print_task_config', None)
-        task_status = task_config.get_status(eventtime) if task_config is not None else {}
-        filament_vendor = task_status.get('filament_vendor')
-        if not isinstance(filament_vendor, list) or len(filament_vendor) < CHANNEL_COUNT:
-            _log.warning("firmware filament record unknown at boot: every remembered lane is kept")
-            return [None] * CHANNEL_COUNT
-        return filament_vendor[:CHANNEL_COUNT]
+        return task_config.get_status(eventtime) if task_config is not None else {}
 
     # Same presence rule the firmware applies to its own filament_exist flags; with no
     # signal every lane counts as loaded, so nothing is forgotten on a guess.
-    def _lane_presence(self, eventtime):
-        task_config = self.printer.lookup_object('print_task_config', None)
-        task_status = task_config.get_status(eventtime) if task_config is not None else {}
-        filament_exist = task_status.get('filament_exist')
-        if not isinstance(filament_exist, list) or len(filament_exist) < CHANNEL_COUNT:
+    def _lane_presence(self, eventtime: float) -> list[bool]:
+        filament_exist = self._task_status(eventtime).get('filament_exist')
+        if not _is_lane_list(filament_exist):
             _log.warning("filament presence unknown: the lane counts as loaded")
             return [True] * CHANNEL_COUNT
         return [bool(lane_loaded) for lane_loaded in filament_exist[:CHANNEL_COUNT]]
@@ -248,8 +327,8 @@ class Bespok3dRfid:
         return next(owners, None)
 
     # The lane's own spool coming back, the echo of _reset_printer_channel included, is never a
-    # read-through. A lane restored from an older build holding its neighbour's UID would otherwise
-    # be reset again by its own echo, forever.
+    # read-through. A lane holding the same UID as another lane would otherwise be reset again by
+    # its own echo, forever.
     def _is_read_through(self, channel, info_data):
         card_uid = info_data.get('CARD_UID')
         if not card_uid or info_data == self._filament_state[channel]:
@@ -263,7 +342,7 @@ class Bespok3dRfid:
         self._reset_printer_channel(channel)
         return True
 
-    def _reset_printer_channel(self, channel):
+    def _reset_printer_channel(self, channel: int) -> bool:
         """The printer took the read-through tag too (filament_detect notifies every listener at
         once), so put the lane back there as this relay holds it: its remembered spool, or
         cleared the way removing the spool clears it. A clear of a lane that remembers a spool
@@ -275,13 +354,12 @@ class Bespok3dRfid:
             _log.warning(
                 "filament_detect set_filament_info door absent: ch=%d keeps the neighbouring "
                 "spool's tag on the printer", channel)
-            return
+            return False
         remembered_spool = self._filament_state[channel]
         if remembered_spool is None:
-            set_filament_info(
-                channel, copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT), is_clear=True)
-            return
-        set_filament_info(channel, copy.deepcopy(remembered_spool), is_clear=False)
+            return bool(set_filament_info(
+                channel, copy.deepcopy(filament_protocol.FILAMENT_INFO_STRUCT), is_clear=True))
+        return bool(set_filament_info(channel, copy.deepcopy(remembered_spool), is_clear=False))
 
     # The firmware sends a clear on every sensor blip, a reboot included, while the spool never
     # left the holder. Only a lane the sensor reports empty has really been unloaded.
@@ -292,17 +370,11 @@ class Bespok3dRfid:
         eventtime = self.printer.get_reactor().monotonic()
         return self._lane_presence(eventtime)[channel]
 
-    def _write_rfid_data(self):
-        empty = filament_protocol.FILAMENT_INFO_STRUCT
-        data = {}
-        for channel in range(CHANNEL_COUNT):
-            data[str(channel)] = copy.deepcopy(self._filament_state[channel] or empty)
-        try:
-            os.makedirs(os.path.dirname(RFID_DATA_FILE), exist_ok=True)
-            with open(RFID_DATA_FILE, 'w') as file_out:
-                json.dump(data, file_out)
-        except Exception as write_err:
-            _log.error("rfid_data.json write failed: %s", write_err)
+    def _write_rfid_data(self) -> None:
+        saved_lanes = {
+            str(channel): copy.deepcopy(lane_state or filament_protocol.FILAMENT_INFO_STRUCT)
+            for channel, lane_state in enumerate(self._filament_state)}
+        saved_lanes_store.save_lanes(saved_lanes)
 
 
 def load_config(config):

@@ -42,6 +42,10 @@ gets it. This holds across a restart too: at startup the plugin reloads what eac
   while the printer was off).
 - A spool still on the holder is kept through a restart, even while the filament sensor is slow to see it.
 - A different tag answering replaces the known spool.
+- Saved spools the plugin cannot prove it saved itself (left by 0.1.17 or older, edited by hand,
+  or cut short by a power cut while saving) are not trusted: those lanes start empty and come back
+  when their tags are read. If such a file put one spool on two lanes, each lane the printer still
+  shows it on is emptied on the printer too.
 - Unloading the filament forgets it.
 - "Clear all spools" does not: a detect afterwards brings the spool back if it never left the lane.
 - For anything odd, the clear and detect buttons still work as before.
