@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.17
+
+- A factory tag that failed to answer after a restart wiped its lane: the spool memory lived
+  only in RAM, so the no-identity guard had nothing to protect and the failed read overwrote
+  `rfid_data.json` with an empty lane. At startup the plugin now reloads the identified spool
+  of each lane from `rfid_data.json`.
+- A spool that never left the printer lost its tag info and its Spoolman link after a power
+  cycle, while the firmware itself kept it. The filament sensors are not settled that early at
+  startup, so a loaded lane can read empty. Startup now forgets a lane only when the firmware's
+  own saved filament for it is gone or belongs to another vendor.
+- A read the guard suppresses now re-sends the remembered spool to the listeners instead of
+  staying silent, so Spoolman gets the spool back after a restart or after "clear all spools"
+  followed by a detect.
+- A clear is now ignored while the filament sensor reports the lane loaded; the remembered spool
+  is re-sent instead. Only a lane the sensor reports empty is forgotten.
+
 ## 0.1.16
 
 - A lane whose own spool carries no tag could pick up the tag of the spool next to it, so two

@@ -31,6 +31,21 @@ file other plugins read:
 Pairs naturally with the **Spoolman Bridge** plugin, which syncs the detected spool to
 your Spoolman server.
 
+## A spool keeps its identity when its tag goes quiet
+
+Some factory tags (Anycubic and Qidi among them) sometimes fail to answer even with the spool
+sitting still on the holder. When a lane already knows its spool, a read that comes back with no
+identity does not wipe it: the plugin keeps the known spool and sends it again, so Spoolman still
+gets it. This holds across a restart too: at startup the plugin reloads what each lane held.
+
+- A lane the printer itself no longer remembers at startup forgets its spool (it was swapped
+  while the printer was off).
+- A spool still on the holder is kept through a restart, even while the filament sensor is slow to see it.
+- A different tag answering replaces the known spool.
+- Unloading the filament forgets it.
+- "Clear all spools" does not: a detect afterwards brings the spool back if it never left the lane.
+- For anything odd, the clear and detect buttons still work as before.
+
 ## Your pressure advance stays put
 
 Stock, the printer replaces a lane's pressure advance with the value from its own material table
