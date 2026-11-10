@@ -23,6 +23,7 @@ EXTENDED_LENGTH_BYTES = 2
 
 TNF_MASK = 0x07
 TNF_MIME = 0x02
+MIME_PARAMETER_SEPARATOR = ';'
 SHORT_RECORD_FLAG = 0x10
 ID_LENGTH_FLAG = 0x08
 LONG_PAYLOAD_LENGTH_BYTES = 4
@@ -120,11 +121,17 @@ def _read_id_length(message: bytes, header: int, cursor: int) -> tuple[int, int]
     return 0, cursor
 
 
+def _media_type(mime_type: str) -> str:
+    # RFC 2045/2046: a media type compares case-insensitively and its parameters
+    # (such as ;charset=) are not part of it, so callers match on the bare type.
+    return mime_type.split(MIME_PARAMETER_SEPARATOR, 1)[0].strip().lower()
+
+
 def _mime_record(header: int, mime_type: str, payload: bytes) -> Record | None:
     if header & TNF_MASK != TNF_MIME:
         return None
     _log.info("NDEF record: mime_type='%s' payload_len=%d", mime_type, len(payload))
-    return {'mime_type': mime_type, 'payload': payload}
+    return {'mime_type': _media_type(mime_type), 'payload': payload}
 
 
 def _parse_record(message: bytes, offset: int) -> tuple[Record | None, int] | None:

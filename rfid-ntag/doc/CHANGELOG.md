@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.19
+
+- A tag that names its content `Application/JSON` or `application/json; charset=utf-8` is now
+  read. Before, only a tag that said exactly `application/json` was read; the others were ignored.
+- An OpenSpool color written wrong, like `#F00` or `zz`, is now skipped. Before, it showed as white
+  or as a wrong color.
+- An OpenSpool tag with no main color, or a wrong one, now shows its first good extra color instead
+  of white or a wrong color. A tag with no good color at all still shows white.
+- OpenSpool extra colors that are not written as a list are now ignored. Before, extra colors
+  written as text showed as wrong colors, and a number or `true` made the whole tag fail to read.
+- An OpenSpool color written with 8 digits, like `#FF000080`, now shows the right color. Its last
+  two digits are ignored; set `alpha` for a see-through color.
+- An OpenSpool see-through value (`alpha`) in quotes is now read as two hex digits: `"80"` is half
+  see-through. Before, `"80"` showed more see-through than that, and a value with letters, like
+  `"C0"`, showed solid. A value in quotes that is not two hex digits, like `"128"`, now shows
+  solid; write it as `"80"`, or as the number `128` without quotes. A number with a decimal
+  point, like `128.0`, and `true` or `false` now show solid too.
+
 ## 0.1.18
 
 - A lane whose spool has no tag could pick up the tag of the spool next to it, so two lanes showed

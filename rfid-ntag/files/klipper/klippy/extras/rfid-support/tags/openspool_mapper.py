@@ -1,9 +1,27 @@
 import copy
 import logging
+import string
 
 from . import filament_protocol, payload_mapper
 
 _log = logging.getLogger('bespok3d.openspool')
+
+MAIN_COLOR_FIELD = 'color_hex'
+EXTRA_COLORS_FIELD = 'additional_color_hexes'
+WHITE_RGB = 0xFFFFFF
+EMPTY_COLOR_SLOT = 0
+MAX_COLORS = 5   # the printer shows at most five colors per spool
+HEX_RADIX = 16
+RGB_HEX_DIGITS = 6
+# RRGGBBAA: the trailing alpha pair is read past; OpenSpool carries alpha in its own field.
+RGBA_HEX_DIGITS = 8
+COLOR_HEX_DIGIT_COUNTS = (RGB_HEX_DIGITS, RGBA_HEX_DIGITS)
+HEX_COLOR_PREFIX = '#'
+ALPHA_FIELD = 'alpha'
+ALPHA_HEX_DIGIT_COUNTS = (2,)
+TRANSPARENT_ALPHA = 0x00
+OPAQUE_ALPHA = 0xFF
+ALPHA_SHIFT = 24
 
 FIELD_MAP = {
     'VENDOR':          ('brand',    str,                           'Generic'),
@@ -18,26 +36,49 @@ FIELD_MAP = {
 }
 
 
-def _parse_color_hex(value):
-    try:
-        return int(str(value).lstrip('#'), 16)
-    except (ValueError, TypeError):
-        return 0xFFFFFF
+def _is_hex(digits: str, digit_counts: tuple[int, ...]) -> bool:
+    has_expected_length = len(digits) in digit_counts
+    return has_expected_length and all(digit in string.hexdigits for digit in digits)
 
 
-def _map_colors(data, info):
-    info['RGB_1'] = _parse_color_hex(data.get('color_hex', 'FFFFFF'))
-    info['COLOR_NUMS'] = 1
-    for idx, hex_color in enumerate(list(data.get('additional_color_hexes') or [])[:4], start=2):
-        info[f'RGB_{idx}'] = _parse_color_hex(hex_color)
-        info['COLOR_NUMS'] = idx
-    for i in range(info['COLOR_NUMS'] + 1, 6):
-        info[f'RGB_{i}'] = 0
-    try:
-        info['ALPHA'] = max(0x00, min(0xFF, int(data.get('alpha', 0xFF))))
-    except (ValueError, TypeError):
-        info['ALPHA'] = 0xFF
-    info['ARGB_COLOR'] = info['ALPHA'] << 24 | info['RGB_1']
+def _hex_rgb(color_hex: object) -> int | None:
+    if not isinstance(color_hex, str):
+        return None
+    digits = color_hex.removeprefix(HEX_COLOR_PREFIX)
+    if not _is_hex(digits, COLOR_HEX_DIGIT_COUNTS):
+        return None
+    return int(digits[:RGB_HEX_DIGITS], HEX_RADIX)
+
+
+def _listed_color_hexes(data: dict) -> list[object]:
+    extra_hexes = data.get(EXTRA_COLORS_FIELD)
+    listed_extras = extra_hexes if isinstance(extra_hexes, list) else []
+    return [data.get(MAIN_COLOR_FIELD), *listed_extras]
+
+
+def _spool_colors(data: dict) -> list[int]:
+    parsed_colors = (_hex_rgb(color_hex) for color_hex in _listed_color_hexes(data))
+    valid_colors = [rgb for rgb in parsed_colors if rgb is not None]
+    return valid_colors[:MAX_COLORS] or [WHITE_RGB]
+
+
+def _spool_alpha(alpha: object) -> int:
+    # The U1 OpenSpool extension writes alpha as a hex pair ("80" is half see-through); a JSON
+    # whole number is taken as the value itself, as before. A JSON true/false is not a number.
+    if isinstance(alpha, int) and not isinstance(alpha, bool):
+        return max(TRANSPARENT_ALPHA, min(OPAQUE_ALPHA, alpha))
+    if isinstance(alpha, str) and _is_hex(alpha, ALPHA_HEX_DIGIT_COUNTS):
+        return int(alpha, HEX_RADIX)
+    return OPAQUE_ALPHA
+
+
+def _map_colors(data: dict, info: dict) -> None:
+    colors = _spool_colors(data)
+    color_slots = colors + [EMPTY_COLOR_SLOT] * (MAX_COLORS - len(colors))
+    info.update({f'RGB_{slot}': rgb for slot, rgb in enumerate(color_slots, start=1)})
+    info['COLOR_NUMS'] = len(colors)
+    info['ALPHA'] = _spool_alpha(data.get(ALPHA_FIELD))
+    info['ARGB_COLOR'] = info['ALPHA'] << ALPHA_SHIFT | info['RGB_1']
 
 
 def _map_bed_temp(data, info):

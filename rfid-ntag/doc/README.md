@@ -69,7 +69,8 @@ Firmware 1.3 and newer. On older firmware the rest of the plugin installs and th
 2. On an Android phone with Chrome, open [printtag-web.pages.dev](https://printtag-web.pages.dev).
 3. Enter the filament information and tap the tag to the phone to write it.
 
-Any NFC app that writes an NDEF record with MIME type `application/json` also works.
+Any NFC app that writes an NDEF record with MIME type `application/json` also works, in any
+letter case and with or without `; charset=utf-8`. The text is always read as UTF-8.
 
 ### Example payload
 
@@ -89,12 +90,21 @@ Any NFC app that writes an NDEF record with MIME type `application/json` also wo
 
 ### Field reference
 
-**Required:** `protocol` (must be `openspool`), `version`, `type` (PLA, PETG, ABS, TPU...),
-`color_hex` (`#RRGGBB`).
+**Required by the OpenSpool format:** `protocol` (must be `openspool`), `version`, `type` (PLA,
+PETG, ABS, TPU...), `color_hex` (`#RRGGBB`; a tag without one still reads, see below).
 
 **Optional:** `brand`, `min_temp` / `max_temp` (nozzle, Celsius), `bed_min_temp` /
 `bed_max_temp`, `subtype` (Basic, Rapid, Silk...), `alpha` (00-FF), `additional_color_hexes`
-(up to 4, for multicolor), `weight` (grams), `diameter` (mm).
+(a list, for multicolor), `weight` (grams), `diameter` (mm).
+
+A color is 6 hex digits, with or without a leading `#`. A color written as `#RRGGBBAA` shows as
+`#RRGGBB`: its last two digits are ignored, so set `alpha` for a see-through color. A color written
+any other way is skipped. A tag whose `color_hex` is missing or skipped still reads: it shows its
+first valid extra color, or white when it has none. The printer shows up to five colors in all.
+
+`alpha` is two hex digits in quotes: `"FF"` is solid, `"80"` is half see-through. A whole
+number with no quotes, like `128`, is also read; above 255 reads as 255 and below 0 as 0.
+Anything else reads as solid.
 
 `brand`, `type` and `subtype` are what the printer reports as the filament's name, and what
 Snapmaker Orca's **Sync Filament Information** looks up. It needs a filament preset named exactly

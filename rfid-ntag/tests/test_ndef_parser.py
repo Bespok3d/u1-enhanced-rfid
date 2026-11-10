@@ -57,6 +57,15 @@ def test_parses_single_mime_record() -> None:
     assert records == [{"mime_type": "application/json", "payload": payload}]
 
 
+def test_mime_type_ignores_case_and_parameters() -> None:
+    payload = b'{"v":1}'
+    message = short_record("Application/JSON; charset=utf-8", payload)
+    data = CAPABILITY_CONTAINER + message_tlv(message) + NDEF_TERMINATOR
+    status, records, _ = ndef_parse(data)
+    assert status == NDEF_OK
+    assert records == [{"mime_type": "application/json", "payload": payload}]
+
+
 def test_extracts_card_uid_from_leading_bytes() -> None:
     message = short_record("a/b", b"x")
     data = CAPABILITY_CONTAINER + message_tlv(message) + NDEF_TERMINATOR
