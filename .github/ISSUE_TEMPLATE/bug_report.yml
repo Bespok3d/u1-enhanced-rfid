@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
+name: Report a problem
+description: "Something does not work the way it should"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Is this the right place?
+
+        Bespok3d is the store. It is not the plugins, and it is not the printer support.
+
+        | Your issue is about | Open it here |
+        | --- | --- |
+        | The Bespok3d app (finding a printer, the store, installing) | [Bespok3d-desktop](https://github.com/Bespok3d/Bespok3d-desktop/issues/new/choose) |
+        | One plugin (camera, RFID, Spoolman, ...) | That plugin's own repository. [See all our repositories](https://github.com/orgs/Bespok3d/repositories) |
+        | Adding (enrolling) a printer, or a printer we do not support yet | [adapters](https://github.com/Bespok3d/adapters/issues/new/choose) |
+        | An idea for a new plugin | [main-index](https://github.com/Bespok3d/main-index/issues/new/choose) |
+
+        **This page is for this plugin only.** Anything else, please open it in the right place.
+
+  - type: checkboxes
+    id: before-you-start
+    attributes:
+      label: Before you start
+      options:
+        - label: "I am sure this is the right repository (see the table above)"
+          required: true
+        - label: "I searched the existing issues and this is not a duplicate"
+          required: true
+        - label: "I checked for updates: the app, the plugin and the printer are on the newest versions"
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "What is the problem"
+      description: "Tell us in a few words what goes wrong."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "How to make it happen again"
+      description: "The steps, one per line, from the start."
+      placeholder: |
+        1. Open the app
+        2. Click ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: "What happened"
+      description: "The broken result you saw. A screenshot or the error text helps a lot."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What you expected"
+      description: "What should have happened instead."
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: "Plugin version"
+      description: "In the app: the store shows it next to the plugin name."
+    validations:
+      required: true
+
+  - type: input
+    id: jinni-version
+    attributes:
+      label: "Jinni version"
+      description: "In the app: Settings > Printers, on your printer's row. Write \"none\" if the printer was never enrolled."
+    validations:
+      required: true
+
+  - type: input
+    id: daemon-version
+    attributes:
+      label: "Daemon version"
+      description: "In the app: Settings > Printers, on your printer's row. Write \"none\" if the printer was never enrolled."
+    validations:
+      required: true

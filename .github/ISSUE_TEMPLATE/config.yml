@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 unlucio and the Bespok3d contributors
+# SPDX-License-Identifier: GPL-3.0-only
+blank_issues_enabled: false
+contact_links:
+  - name: "A problem with the Bespok3d app"
+    url: https://github.com/Bespok3d/Bespok3d-desktop/issues/new/choose
+    about: "Finding a printer, the store, installing."
+  - name: "Adding (enrolling) a printer, or a new printer"
+    url: https://github.com/Bespok3d/adapters/issues/new/choose
+    about: "Printer support lives in the adapters."
+  - name: "An idea for a new plugin"
+    url: https://github.com/Bespok3d/main-index/issues/new/choose
+    about: "New plugin requests go to the main index."
+  - name: "A security problem"
+    url: https://github.com/Bespok3d/u1-enhanced-rfid/security/policy
+    about: "Report it privately, the way the security policy says. Do not open a public issue."
